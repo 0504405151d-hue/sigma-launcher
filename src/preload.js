@@ -31,6 +31,22 @@ contextBridge.exposeInMainWorld('api', {
   bedrockConnect: (h, p) => ipcRenderer.invoke('bedrock:connect', h, p),
   bedrockPing: (h, p) => ipcRenderer.invoke('bedrock:ping', h, p),
 
+  profiles: () => ipcRenderer.invoke('profiles:list'),
+  saveProfile: (p) => ipcRenderer.invoke('profiles:save', p),
+  selectProfile: (id) => ipcRenderer.invoke('profiles:select', id),
+  deleteProfile: (id) => ipcRenderer.invoke('profiles:delete', id),
+  openProfile: (id) => ipcRenderer.invoke('profiles:open', id),
+  fabricSupported: (mc) => ipcRenderer.invoke('fabric:supported', mc),
+
+  mrSearch: (q) => ipcRenderer.invoke('mr:search', q),
+  mrInstalled: () => ipcRenderer.invoke('mr:installed'),
+  mrInstall: (id, type) => ipcRenderer.invoke('mr:install', { id, type }),
+  mrRemove: (id) => ipcRenderer.invoke('mr:remove', id),
+
+  stats: () => ipcRenderer.invoke('stats:get'),
+  resetStats: () => ipcRenderer.invoke('stats:reset'),
+  discordAvailable: () => ipcRenderer.invoke('discord:available'),
+
   onStatus: (cb) => ipcRenderer.on('status', (_e, d) => cb(d)),
   onLog: (cb) => ipcRenderer.on('log', (_e, d) => cb(d))
 });

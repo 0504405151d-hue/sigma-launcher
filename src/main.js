@@ -7,6 +7,7 @@ const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 const { Client, Authenticator } = require('minecraft-launcher-core');
 const extractZip = require('extract-zip');
+const modrinth = require('./modrinth');
 
 const DATA = path.join(app.getPath('appData'), '.sigmalauncher');
 const SETTINGS_FILE = path.join(DATA, 'settings.json');
@@ -28,6 +29,9 @@ const DEFAULTS = {
   customJava: '',
   closeOnLaunch: true,
   skinEnabled: true,
+  discordRpc: true,
+  profiles: null,
+  activeProfile: 'default',
   bedrockServers: [
     { name: 'The Hive', host: 'geo.hivebedrock.network', port: 19132 },
     { name: 'CubeCraft', host: 'mco.cubecraft.net', port: 19132 },
@@ -41,22 +45,58 @@ const PKG = require('../package.json');
 const APP_VERSION = PKG.version;
 const UPDATE_REPO = (PKG.updateRepo || '').trim();
 
+const stats = require('./stats')(DATA);
+const discord = require('./discord')(String(PKG.discordClientId || '').trim());
+
 let win = null;
 let manifestCache = null;
 let gameRunning = false;
 let pendingUpdate = null;
 
-/* ---------- settings ---------- */
-function loadSettings() {
-  try {
-    return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) };
-  } catch {
-    return { ...DEFAULTS };
-  }
+/* ---------- settings + сборки ---------- */
+function readRaw() {
+  try { return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) }; } catch { return { ...DEFAULTS }; }
 }
-function saveSettings(s) {
+function writeRaw(s) {
   fs.mkdirSync(DATA, { recursive: true });
-  fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ ...loadSettings(), ...s }, null, 2));
+  fs.writeFileSync(SETTINGS_FILE, JSON.stringify(s, null, 2));
+}
+function ensureProfiles(s) {
+  if (!Array.isArray(s.profiles) || !s.profiles.length) {
+    s.profiles = [{ id: 'default', name: 'Основная', version: s.version || null, loader: 'vanilla', ramMax: null, content: {}, created: Date.now() }];
+  }
+  if (!s.profiles.find((p) => p.id === s.activeProfile)) s.activeProfile = s.profiles[0].id;
+  return s;
+}
+function activeProfile(s) {
+  return s.profiles.find((p) => p.id === s.activeProfile) || s.profiles[0];
+}
+// у основной сборки — общая папка игры (старые миры остаются на месте)
+function profileDir(s, p) {
+  return p.id === 'default' ? s.gameDir : path.join(DATA, 'profiles', p.id);
+}
+
+function loadSettings() {
+  const s = ensureProfiles(readRaw());
+  const p = activeProfile(s);
+  s.version = p.version;
+  s.profile = { ...p, dir: profileDir(s, p) };
+  return s;
+}
+function saveSettings(patch) {
+  const s = ensureProfiles(readRaw());
+  const { profile, ...rest } = patch;
+  Object.assign(s, rest);
+  if ('version' in patch) activeProfile(s).version = patch.version;
+  writeRaw(s);
+}
+function updateProfile(id, fn) {
+  const s = ensureProfiles(readRaw());
+  const p = s.profiles.find((x) => x.id === id);
+  if (!p) throw new Error('Сборка не найдена');
+  fn(p, s);
+  writeRaw(s);
+  return p;
 }
 
 /* ---------- helpers ---------- */
@@ -429,7 +469,12 @@ ipcMain.on('win:close', () => win.close());
 
 ipcMain.handle('settings:get', () => loadSettings());
 ipcMain.handle('settings:set', (_e, s) => { saveSettings(s); return loadSettings(); });
-ipcMain.handle('settings:reset', () => { saveSettings(DEFAULTS); return loadSettings(); });
+ipcMain.handle('settings:reset', () => {
+  const s = ensureProfiles(readRaw());
+  const { profiles, activeProfile: ap, bedrockServers } = s;
+  writeRaw({ ...DEFAULTS, profiles, activeProfile: ap, bedrockServers });
+  return loadSettings();
+});
 
 ipcMain.handle('system:info', () => ({
   totalRam: Math.floor(os.totalmem() / 1024 / 1024),
@@ -466,13 +511,16 @@ ipcMain.handle('dialog:java', async () => {
 
 ipcMain.handle('open:folder', (_e, which) => {
   const s = loadSettings();
+  const g = s.profile.dir;
   const map = {
-    game: s.gameDir,
-    mods: path.join(s.gameDir, 'mods'),
-    screenshots: path.join(s.gameDir, 'screenshots'),
-    resourcepacks: path.join(s.gameDir, 'resourcepacks')
+    game: g,
+    mods: path.join(g, 'mods'),
+    screenshots: path.join(g, 'screenshots'),
+    resourcepacks: path.join(g, 'resourcepacks'),
+    shaderpacks: path.join(g, 'shaderpacks'),
+    saves: path.join(g, 'saves')
   };
-  const dir = map[which] || s.gameDir;
+  const dir = map[which] || g;
   fs.mkdirSync(dir, { recursive: true });
   shell.openPath(dir);
 });
@@ -483,10 +531,140 @@ ipcMain.handle('version:delete', (_e, id) => {
   return true;
 });
 
+/* ---------- сборки (IPC) ---------- */
+const profileView = (s, p, st) => ({
+  ...p,
+  dir: profileDir(s, p),
+  active: p.id === s.activeProfile,
+  playtime: st.byProfile[p.id] || 0,
+  counts: Object.values(p.content || {}).reduce((a, c) => { a[c.type] = (a[c.type] || 0) + 1; return a; }, {})
+});
+
+ipcMain.handle('profiles:list', () => {
+  const s = loadSettings();
+  const st = stats.get();
+  return s.profiles.map((p) => profileView(s, p, st));
+});
+
+ipcMain.handle('profiles:save', (_e, data) => {
+  const s = ensureProfiles(readRaw());
+  const clean = {
+    name: String(data.name || '').trim().slice(0, 32) || 'Новая сборка',
+    version: data.version || null,
+    loader: data.loader === 'fabric' ? 'fabric' : 'vanilla',
+    ramMax: data.ramMax ? Number(data.ramMax) : null,
+    color: data.color || null
+  };
+  let p = s.profiles.find((x) => x.id === data.id);
+  if (p) Object.assign(p, clean);
+  else {
+    p = { id: 'p' + Date.now().toString(36), content: {}, created: Date.now(), ...clean };
+    s.profiles.push(p);
+    s.activeProfile = p.id;
+  }
+  writeRaw(s);
+  return p.id;
+});
+
+ipcMain.handle('profiles:select', (_e, id) => { saveSettings({ activeProfile: id }); return loadSettings(); });
+
+ipcMain.handle('profiles:delete', (_e, id) => {
+  if (id === 'default') throw new Error('Основную сборку удалить нельзя');
+  const s = ensureProfiles(readRaw());
+  s.profiles = s.profiles.filter((p) => p.id !== id);
+  if (s.activeProfile === id) s.activeProfile = 'default';
+  writeRaw(s);
+  fs.rmSync(path.join(DATA, 'profiles', id), { recursive: true, force: true });
+  return true;
+});
+
+ipcMain.handle('profiles:open', (_e, id) => {
+  const s = loadSettings();
+  const p = s.profiles.find((x) => x.id === id);
+  if (!p) return;
+  const dir = profileDir(s, p);
+  fs.mkdirSync(dir, { recursive: true });
+  shell.openPath(dir);
+});
+
+ipcMain.handle('fabric:supported', async (_e, mc) => {
+  try { return await modrinth.fabricSupports(mc); } catch { return false; }
+});
+
+/* ---------- Modrinth (IPC) ---------- */
+async function currentMc(s) {
+  if (s.version) return s.version;
+  return (await getManifest()).latest.release;
+}
+
+ipcMain.handle('mr:search', async (_e, q) => {
+  const s = loadSettings();
+  const mc = await currentMc(s);
+  const r = await modrinth.search({ ...q, mc });
+  const content = s.profile.content || {};
+  r.hits.forEach((h) => { h.installed = !!content[h.id]; });
+  return { ...r, mc };
+});
+
+ipcMain.handle('mr:installed', () => {
+  const s = loadSettings();
+  return Object.values(s.profile.content || {});
+});
+
+let mrBusy = false;
+ipcMain.handle('mr:install', async (_e, { id, type }) => {
+  if (mrBusy) throw new Error('Подожди, идёт другая установка');
+  if (gameRunning) throw new Error('Закрой игру перед установкой');
+  mrBusy = true;
+  try {
+    const s = loadSettings();
+    const p = s.profile;
+    const mc = await currentMc(s);
+    let switched = false;
+    if ((type === 'mod' || type === 'shader') && p.loader !== 'fabric') {
+      if (!(await modrinth.fabricSupports(mc))) throw new Error(`Моды работают с 1.14 и новее, а у сборки ${mc}`);
+      switched = true;
+    }
+    const content = { ...(p.content || {}) };
+    const log = (l) => send('log', l);
+    if (type === 'shader' && !content.YL57xq9U) { // Iris
+      await modrinth.install({ project: 'iris', type: 'mod', mc, gameDir: p.dir, content, log, depth: 1 });
+    }
+    const item = await modrinth.install({ project: id, type, mc, gameDir: p.dir, content, log });
+    updateProfile(p.id, (prof) => {
+      prof.content = content;
+      if (switched) prof.loader = 'fabric';
+      if (!prof.version) prof.version = mc;
+    });
+    return { item, switched };
+  } finally {
+    mrBusy = false;
+  }
+});
+
+ipcMain.handle('mr:remove', (_e, id) => {
+  const s = loadSettings();
+  const content = { ...(s.profile.content || {}) };
+  modrinth.remove({ id, gameDir: s.profile.dir, content });
+  updateProfile(s.profile.id, (prof) => { prof.content = content; });
+  return true;
+});
+
+/* ---------- статистика (IPC) ---------- */
+ipcMain.handle('stats:get', () => {
+  const s = loadSettings();
+  const names = Object.fromEntries(s.profiles.map((p) => [p.id, p.name]));
+  return { ...stats.get(), profileNames: names };
+});
+ipcMain.handle('stats:reset', () => { stats.reset(); return true; });
+ipcMain.handle('discord:available', () => discord.enabled());
+
+/* ---------- запуск игры ---------- */
 ipcMain.handle('game:launch', async () => {
   if (gameRunning) throw new Error('Игра уже запущена');
   if (pendingUpdate) throw new Error('Сначала обнови лаунчер');
   const s = loadSettings();
+  const prof = s.profile;
   const nick = (s.nickname || '').trim();
   if (!/^[A-Za-z0-9_]{3,16}$/.test(nick)) {
     throw new Error('Ник: 3–16 символов, только латиница, цифры и _');
@@ -505,33 +683,46 @@ ipcMain.handle('game:launch', async () => {
       ? s.customJava
       : await ensureJava(vjson.javaVersion?.majorVersion);
 
-    fs.mkdirSync(s.gameDir, { recursive: true });
-    await prepareNatives(vjson, s.gameDir);
-    try { applySkin(vjson, s.gameDir); } catch (e) { send('log', `[skin] Ошибка: ${e.message}`); }
+    const root = s.gameDir;
+    const gameDir = prof.dir;
+    fs.mkdirSync(root, { recursive: true });
+    fs.mkdirSync(gameDir, { recursive: true });
+    await prepareNatives(vjson, root);
+    try { applySkin(vjson, gameDir); } catch (e) { send('log', `[skin] Ошибка: ${e.message}`); }
 
+    const version = { number: entry.id, type: entry.type };
+    if (prof.loader === 'fabric') {
+      send('status', { text: 'Готовлю Fabric...', percent: 0 });
+      version.custom = await modrinth.ensureFabric(root, entry.id, (l) => send('log', l));
+    }
+
+    const ram = Number(prof.ramMax) || Number(s.ramMax) || 4096;
     const launcher = new Client();
     const opts = {
       authorization: Authenticator.getAuth(nick),
-      root: s.gameDir,
-      version: { number: entry.id, type: entry.type },
-      memory: { max: `${s.ramMax}M`, min: `${Math.min(s.ramMin, s.ramMax)}M` },
+      root,
+      version,
+      memory: { max: `${ram}M`, min: `${Math.min(s.ramMin, ram)}M` },
       javaPath,
       window: s.fullscreen
         ? { fullscreen: true }
         : { width: Number(s.width) || 1280, height: Number(s.height) || 720 },
       customArgs: s.jvmArgs ? s.jvmArgs.split(/\s+/).filter(Boolean) : [],
-      overrides: { detached: false, maxSockets: 8 }
+      overrides: { detached: false, maxSockets: 8, gameDirectory: gameDir, cwd: gameDir }
     };
 
-    let started = false;
+    let started = 0;
+    const session = { version: entry.id, loader: prof.loader, profileId: prof.id, profileName: prof.name };
 
     launcher.on('debug', (l) => send('log', `[launcher] ${l}`));
     launcher.on('data', (l) => {
       send('log', String(l).trimEnd());
       if (!started) {
-        started = true;
+        started = Date.now();
+        stats.launched();
         send('status', { text: 'Игра запущена', percent: 100, playing: true });
         if (s.closeOnLaunch) win.hide();
+        if (s.discordRpc) discord.playing({ version: entry.id, loader: prof.loader, profile: prof.name, start: started });
       }
     });
     launcher.on('progress', (p) => {
@@ -548,6 +739,8 @@ ipcMain.handle('game:launch', async () => {
     });
     launcher.on('close', (code) => {
       gameRunning = false;
+      if (started) stats.addSession({ ...session, start: started, ms: Date.now() - started });
+      discord.stop();
       if (win.isDestroyed()) return;
       win.show();
       send('status', { text: code === 0 ? 'Готово к игре' : `Игра закрылась с кодом ${code}`, percent: 0, playing: false, finished: true, code });
@@ -562,3 +755,5 @@ ipcMain.handle('game:launch', async () => {
     throw e;
   }
 });
+
+app.on('before-quit', () => discord.destroy());

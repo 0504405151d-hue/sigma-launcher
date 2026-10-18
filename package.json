@@ -12,6 +12,7 @@
     "postinstall": "node scripts/patch-mclc.js"
   },
   "dependencies": {
+    "@xhayper/discord-rpc": "^1.5.1",
     "adm-zip": "^0.5.18",
     "extract-zip": "^2.0.1",
     "minecraft-launcher-core": "^3.18.2"

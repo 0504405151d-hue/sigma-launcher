@@ -29,11 +29,20 @@
       <button class="nav" data-page="bedrock" title="Bedrock">
         <svg viewBox="0 0 24 24"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M12 12l9-5M12 12v10M12 12L3 7"/></svg><span>Bedrock</span>
       </button>
+      <button class="nav" data-page="profiles" title="Сборки">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><path d="M17.5 14v7M14 17.5h7"/></svg><span>Сборки</span>
+      </button>
+      <button class="nav" data-page="mods" title="Моды">
+        <svg viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-8 8"/><path d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg><span>Моды</span>
+      </button>
       <button class="nav" data-page="versions" title="Версии">
         <svg viewBox="0 0 24 24"><path d="M12 2l9 5-9 5-9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span>Версии</span>
       </button>
       <button class="nav" data-page="skin" title="Скин">
         <svg viewBox="0 0 24 24"><path d="M8 3h8l4 4-3 2v12H7V9L4 7z"/></svg><span>Скин</span>
+      </button>
+      <button class="nav" data-page="stats" title="Статистика">
+        <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Статистика</span>
       </button>
       <button class="nav" data-page="settings" title="Настройки">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Настройки</span>
@@ -68,6 +77,10 @@
           <div class="field nick">
             <label>Никнейм</label>
             <input id="nickInput" maxlength="16" spellcheck="false" placeholder="Player" />
+          </div>
+          <div class="field pfield">
+            <label>Сборка</label>
+            <button class="ver-pick" id="profPick"><span class="prof-dot" id="profDot"></span><span id="profPickText">Основная</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
           </div>
           <div class="field vfield">
             <label>Версия</label>
@@ -120,6 +133,72 @@
             <input id="brAddr" placeholder="адрес:порт, например play.server.net:19132" spellcheck="false" />
             <button class="btn primary" id="brAddBtn">Добавить</button>
           </div>
+        </div>
+      </section>
+
+      <!-- PROFILES -->
+      <section class="page" id="page-profiles">
+        <div class="page-head">
+          <h2>Сборки</h2>
+          <button class="btn primary" id="profNew">+ Новая сборка</button>
+        </div>
+        <p class="muted page-sub">У каждой сборки своя версия, свои моды, миры и настройки. Переключайся в один клик.</p>
+        <div class="prof-grid" id="profGrid"></div>
+      </section>
+
+      <!-- MODS -->
+      <section class="page" id="page-mods">
+        <div class="page-head">
+          <div>
+            <h2>Моды</h2>
+            <div class="muted mods-for" id="modsFor">—</div>
+          </div>
+          <div class="search">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <input id="modSearch" placeholder="Найти на Modrinth" spellcheck="false" />
+          </div>
+        </div>
+        <div class="filters mods-tabs">
+          <button class="filter active" data-mtype="mod">Моды</button>
+          <button class="filter" data-mtype="shader">Шейдеры</button>
+          <button class="filter" data-mtype="resourcepack">Ресурспаки</button>
+          <button class="filter" data-mtype="installed">Установленные</button>
+          <div class="spacer"></div>
+          <select id="modSort" class="select">
+            <option value="downloads">Популярные</option>
+            <option value="relevance">Подходящие</option>
+            <option value="updated">Обновлённые</option>
+            <option value="newest">Новые</option>
+          </select>
+        </div>
+        <div class="mod-list" id="modList"></div>
+        <button class="btn ghost more" id="modMore" hidden>Показать ещё</button>
+      </section>
+
+      <!-- STATS -->
+      <section class="page" id="page-stats">
+        <div class="page-head">
+          <h2>Статистика</h2>
+          <button class="btn ghost" id="statsReset">Сбросить</button>
+        </div>
+        <div class="tiles">
+          <div class="tile"><div class="tile-label">Наиграно</div><div class="tile-value" id="stTotal">0 ч</div></div>
+          <div class="tile"><div class="tile-label">Запусков</div><div class="tile-value" id="stLaunches">0</div></div>
+          <div class="tile"><div class="tile-label">Любимая версия</div><div class="tile-value" id="stFav">—</div></div>
+        </div>
+        <div class="stats-cols">
+          <div class="card">
+            <h3>Время по версиям</h3>
+            <div class="bars" id="stVersions"></div>
+          </div>
+          <div class="card">
+            <h3>Время по сборкам</h3>
+            <div class="bars" id="stProfiles"></div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Последние сессии</h3>
+          <div class="sessions" id="stSessions"></div>
         </div>
       </section>
 
@@ -275,6 +354,13 @@
               </div>
               <label class="switch"><input type="checkbox" id="closeOnLaunch" /><span></span></label>
             </div>
+            <div class="row">
+              <div>
+                <div class="row-title">Статус в Discord</div>
+                <div class="row-sub" id="discordNote">Друзья увидят, во что ты играешь. Нужен запущенный Discord.</div>
+              </div>
+              <label class="switch"><input type="checkbox" id="discordRpc" /><span></span></label>
+            </div>
           </div>
 
           <div class="card">
@@ -322,11 +408,37 @@
     </main>
   </div>
 
+  <div class="modal" id="profModal" hidden>
+    <div class="modal-box">
+      <h2 id="pmTitle">Новая сборка</h2>
+      <label class="pm-label">Название</label>
+      <input id="pmName" maxlength="32" placeholder="Например: Выживание с модами" spellcheck="false" />
+      <label class="pm-label">Версия Minecraft</label>
+      <select id="pmVersion" class="select"></select>
+      <label class="check"><input type="checkbox" id="pmSnap" /> показывать снапшоты и старые версии</label>
+      <label class="pm-label">Загрузчик</label>
+      <div class="seg full" id="pmLoader">
+        <button data-loader="vanilla" class="active">Ванилла</button>
+        <button data-loader="fabric">Fabric (моды)</button>
+      </div>
+      <div class="row-sub" id="pmLoaderNote"></div>
+      <label class="pm-label">Память: <b id="pmRamVal">как в настройках</b></label>
+      <input type="range" id="pmRam" min="0" max="16384" step="512" />
+      <label class="pm-label">Цвет</label>
+      <div class="pm-colors" id="pmColors"></div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="pmCancel">Отмена</button>
+        <button class="btn primary" id="pmSave">Сохранить</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
   <script src="vendor/skinview3d.bundle.js"></script>
   <script src="renderer.js"></script>
   <script src="skin.js"></script>
   <script src="editor.js"></script>
   <script src="bedrock.js"></script>
+  <script src="features.js"></script>
 </body>
 </html>
