@@ -19,14 +19,14 @@
     installed = st.installed;
     if (installed) {
       tag.className = 'tag br ok';
-      tag.textContent = `Установлена · версия ${st.version}`;
+      tag.textContent = st.version ? `Установлена · версия ${st.version}` : 'Minecraft установлен';
       playBtn.querySelector('.play-label').textContent = 'ИГРАТЬ';
       el('brPlaySub').textContent = 'Запустить Bedrock';
     } else {
       tag.className = 'tag br warn';
-      tag.textContent = 'Bedrock не установлен';
+      tag.textContent = st.mobile ? 'Minecraft не установлен' : 'Bedrock не установлен';
       playBtn.querySelector('.play-label').textContent = 'КУПИТЬ';
-      el('brPlaySub').textContent = 'Открыть Microsoft Store';
+      el('brPlaySub').textContent = st.mobile ? 'Открыть Google Play' : 'Открыть Microsoft Store';
     }
   }
 
@@ -75,7 +75,7 @@
     if (r.online) {
       dot.className = 'srv-dot on';
       card.querySelector('.srv-pl').textContent = `${r.players.toLocaleString('ru-RU')} / ${r.max.toLocaleString('ru-RU')}`;
-      card.querySelector('.srv-ping').textContent = `${r.ping} мс`;
+      card.querySelector('.srv-ping').textContent = r.ping != null ? `${r.ping} мс` : '—';
       if (r.version) card.querySelector('.srv-addr').textContent = `${s.host}:${s.port} · ${r.version}`;
     } else {
       dot.className = 'srv-dot off';

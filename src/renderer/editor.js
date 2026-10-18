@@ -248,7 +248,9 @@
   }
 
   view.addEventListener('contextmenu', (e) => e.preventDefault());
-  view.addEventListener('mousedown', (e) => {
+  view.style.touchAction = 'none';
+  view.addEventListener('pointerdown', (e) => {
+    view.setPointerCapture?.(e.pointerId);
     const c = cell(e);
     if (!c) return;
     if (e.button === 2 || tool === 'picker' || e.altKey) { pick(...c); render(); return; }
@@ -260,7 +262,7 @@
     if (tool === 'pen') addRecent(color);
     render();
   });
-  window.addEventListener('mousemove', (e) => {
+  window.addEventListener('pointermove', (e) => {
     if (!layout.classList.contains('editing')) return;
     const c = cell(e);
     const changed = String(c) !== String(hover);
@@ -269,7 +271,9 @@
     if (drawing && c && last) { line(last[0], last[1], c[0], c[1]); last = c; render(); }
     else if (changed) render();
   });
-  window.addEventListener('mouseup', () => { drawing = false; last = null; });
+  const stop = () => { drawing = false; last = null; };
+  window.addEventListener('pointerup', stop);
+  window.addEventListener('pointercancel', stop);
 
   /* ---------- инструменты и цвет ---------- */
   function setTool(t) {
@@ -343,6 +347,7 @@
   };
 
   document.getElementById('edExport').onclick = () => {
+    if (api.exportSkin) return api.exportSkin(skin.toDataURL('image/png'));
     const a = document.createElement('a');
     a.href = skin.toDataURL('image/png');
     a.download = 'skin.png';

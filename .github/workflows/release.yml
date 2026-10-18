@@ -8,6 +8,7 @@ on:
       - 'scripts/**'
       - 'package.json'
       - 'package-lock.json'
+      - 'mobile/**'
   workflow_dispatch:
 
 permissions:
@@ -44,3 +45,56 @@ jobs:
           body: ${{ github.event.head_commit.message }}
           files: dist/SigmaLauncher-portable.exe
           make_latest: true
+
+  android:
+    needs: release
+    runs-on: ubuntu-latest
+    env:
+      SIGMA_KS_PASS: ${{ secrets.SIGMA_KS_PASS }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check signing password
+        id: sign
+        run: |
+          if [ -z "$SIGMA_KS_PASS" ]; then
+            echo "::warning::Нет секрета SIGMA_KS_PASS — APK не собирается"
+            echo "ok=false" >> $GITHUB_OUTPUT
+          else
+            echo "ok=true" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.sign.outputs.ok == 'true'
+        with:
+          node-version: 22
+
+      - uses: actions/setup-java@v4
+        if: steps.sign.outputs.ok == 'true'
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Build web + sync
+        if: steps.sign.outputs.ok == 'true'
+        working-directory: mobile
+        run: |
+          npm install --no-audit --no-fund
+          npm run sync
+
+      - name: Build APK
+        if: steps.sign.outputs.ok == 'true'
+        working-directory: mobile/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon \
+            -PappVersionName=1.1.${{ github.run_number }} \
+            -PappVersionCode=${{ github.run_number }}
+          cp app/build/outputs/apk/release/app-release.apk ../../SigmaLauncher.apk
+
+      - name: Attach APK to release
+        if: steps.sign.outputs.ok == 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.1.${{ github.run_number }}
+          files: SigmaLauncher.apk

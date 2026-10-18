@@ -1,0 +1,6 @@
+{
+  "appId": "com.sigmaboy.launcher",
+  "appName": "Sigma Launcher",
+  "webDir": "www",
+  "android": { "backgroundColor": "#0b0d12" }
+}

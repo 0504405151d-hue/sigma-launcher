@@ -1,0 +1,64 @@
+/* ---------- мобильная раскладка ---------- */
+body.mobile { overflow: hidden; user-select: none; -webkit-tap-highlight-color: transparent; }
+.m-top {
+  flex: none; height: calc(52px + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 16px 0;
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--bg2); border-bottom: 1px solid var(--line);
+}
+.m-ver { font-size: 12px; color: var(--muted); }
+.m-update {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin: 10px 14px 0; padding: 10px 12px; border-radius: 12px;
+  background: rgba(251,191,36,.12); border: 1px solid rgba(251,191,36,.35); color: #fde68a; font-size: 13px;
+}
+.m-update[hidden] { display: none; }
+.m-update .btn { background: #f59e0b; border-color: #f59e0b; color: #422006; }
+main { flex: 1; position: relative; min-height: 0; }
+.page { padding: 16px 14px 24px; }
+.m-tabs {
+  flex: none; display: flex; justify-content: space-around;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  background: var(--bg2); border-top: 1px solid var(--line);
+}
+.m-tabs .nav { width: auto; flex: 1; padding: 8px 0 6px; }
+.m-tabs .nav.active::before { display: none; }
+.m-tabs .nav span { font-size: 11px; }
+
+/* Bedrock */
+.br-hero { flex-direction: column; align-items: stretch; padding: 0 0 18px; min-height: 0; }
+.br-content { padding: 22px 18px 14px; }
+.br-content h1 { font-size: 28px; }
+.br-play { margin: 0 18px; min-width: 0; }
+.br-servers { grid-template-columns: 1fr; }
+.br-add-row { flex-direction: column; }
+#brName { width: auto; }
+.btn { padding: 10px 14px; }
+.btn.wide { width: 100%; }
+.howto { margin-top: 10px; line-height: 1.5; }
+.howto b { color: var(--text); font-weight: 600; }
+
+/* Скин */
+.skin-layout { flex-direction: column; }
+.skin-stage { width: 100%; height: 340px; }
+.skin-btns { flex-wrap: wrap; }
+.skin-btns .btn { flex: 1; }
+.seg { display: flex; margin-right: 0; }
+.seg button { flex: 1; padding: 8px 6px; }
+
+/* Редактор на телефоне */
+.skin-editor { flex-direction: column; height: auto; min-height: 0; }
+.skin-layout.editing .skin-stage { width: 100%; height: 170px; min-height: 0; }
+.skin-layout.editing .skin-hint { display: none; }
+.ed-tools { flex-direction: row; justify-content: space-between; gap: 2px; padding: 6px; }
+.ed-tools .tool { width: 34px; height: 34px; }
+.ed-tools .tool svg { width: 18px; height: 18px; }
+.tool-sep { width: 1px; height: auto; margin: 2px 1px; }
+.ed-canvas-wrap { flex: none; width: 100%; aspect-ratio: 1; padding: 6px; }
+#edCanvas { width: 100%; height: 100%; }
+.ed-side { width: auto; }
+.ed-palette { grid-template-columns: repeat(8, 1fr); }
+.ed-side .spacer { display: none; }
+
+.settings { max-width: none; }
+.row { flex-wrap: wrap; }
+.toast { bottom: calc(90px + env(safe-area-inset-bottom)); max-width: 90%; text-align: center; }

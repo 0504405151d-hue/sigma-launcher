@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>Sigma Launcher</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="mobile.css" />
+</head>
+<body class="mobile">
+  <header class="m-top">
+    <div class="brand">
+      <div class="logo"><span></span><span></span><span></span><span></span></div>
+      <b>SIGMA</b><i>launcher</i>
+    </div>
+    <span class="m-ver" id="appVer"></span>
+  </header>
+
+  <div class="m-update" id="mUpdate" hidden>
+    <div><b>Доступно обновление</b><span id="mUpdateVer"></span></div>
+    <button class="btn" id="mUpdateBtn">Обновить</button>
+  </div>
+
+  <main>
+      <section class="page active" id="page-bedrock">
+        <div class="br-hero">
+          <div class="hero-grid"></div>
+          <div class="br-glow"></div>
+          <div class="br-content">
+            <div class="tag br" id="brTag">Проверяю установку...</div>
+            <h1>Minecraft<br/><em>Bedrock Edition</em></h1>
+            <p class="muted" id="brText">Выбери сервер и жми «Играть» — Minecraft откроется и сразу подключится.</p>
+          </div>
+          <button class="play br-play" id="brPlay" disabled>
+            <span class="play-label">ИГРАТЬ</span>
+            <span class="play-sub" id="brPlaySub">Проверка...</span>
+          </button>
+        </div>
+
+        <div class="page-head br-head">
+          <h2>Серверы</h2>
+          <button class="btn ghost" id="brRefresh">Обновить</button>
+        </div>
+        <div class="br-servers" id="brServers"></div>
+
+        <div class="card br-add">
+          <h3>Добавить сервер</h3>
+          <div class="br-add-row">
+            <input id="brName" placeholder="Название" spellcheck="false" />
+            <input id="brAddr" placeholder="адрес:порт, например play.server.net:19132" spellcheck="false" />
+            <button class="btn primary" id="brAddBtn">Добавить</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="page-skin">
+        <div class="page-head"><h2>Скин</h2></div>
+        <div class="skin-layout">
+          <div class="skin-stage">
+            <canvas id="skinCanvas"></canvas>
+            <div class="skin-hint">Крути пальцем</div>
+          </div>
+          <div class="skin-side">
+            <div class="card">
+              <h3>Твой скин</h3>
+              <div class="skin-btns">
+                <button class="btn primary" id="skinUpload">Загрузить PNG</button>
+                <button class="btn" id="skinDraw">🖌 Нарисовать</button>
+                <button class="btn ghost" id="skinRemove">Убрать</button>
+              </div>
+              <input type="file" id="skinFile" accept="image/png" hidden />
+              <div class="drop" id="skinDrop" hidden></div>
+              <div class="row-sub">Подходят обычные скины 64×64 и старые 64×32.</div>
+            </div>
+            <div class="card">
+              <h3>Превью</h3>
+              <div class="seg" id="skinModel">
+                <button class="active" data-model="default">Классическая</button>
+                <button data-model="slim">Тонкие руки</button>
+              </div>
+              <div class="seg" id="skinAnim">
+                <button class="active" data-anim="idle">Стоит</button>
+                <button data-anim="walk">Идёт</button>
+                <button data-anim="run">Бежит</button>
+              </div>
+            </div>
+            <div class="card">
+              <h3>В Minecraft</h3>
+              <button class="btn primary wide" id="skinShare">Сохранить скин на телефон</button>
+              <div class="row-sub howto">Потом в Minecraft: <b>Гардероб → Классические скины → Импорт → Выбрать новый скин</b> и выбери сохранённую картинку.</div>
+              <input type="checkbox" id="skinEnabled" hidden />
+            </div>
+            <div class="card" hidden>
+              <div class="row">
+                <div>
+                  <div class="row-title">Применять скин в игре</div>
+                  <div class="row-sub">Работает с версии 1.6. Скин видишь ты сам — другие игроки на сервере его не увидят.</div>
+                </div>
+                <label class="switch"><input type="checkbox" id="skinEnabled" /><span></span></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="skin-editor" id="skinEditor">
+            <div class="ed-tools">
+              <button class="tool active" data-tool="pen" title="Карандаш (B)"><svg viewBox="0 0 24 24"><path d="M4 20l4-1L19 8l-3-3L5 16z"/><path d="M14 7l3 3"/></svg></button>
+              <button class="tool" data-tool="eraser" title="Ластик (E)"><svg viewBox="0 0 24 24"><path d="M7 21h10M5 15l9-9 5 5-9 9H8z"/><path d="M10 10l5 5"/></svg></button>
+              <button class="tool" data-tool="fill" title="Заливка (G)"><svg viewBox="0 0 24 24"><path d="M5 11l7-7 7 7-7 7z"/><path d="M20 15s2 2.5 2 4a2 2 0 0 1-4 0c0-1.5 2-4 2-4z"/></svg></button>
+              <button class="tool" data-tool="picker" title="Пипетка (I)"><svg viewBox="0 0 24 24"><path d="M15 4l5 5-2 2-5-5zM13 6L4 15v5h5l9-9"/></svg></button>
+              <div class="tool-sep"></div>
+              <button class="tool" id="edMirror" title="Зеркально для рук и ног (M)"><svg viewBox="0 0 24 24"><path d="M12 3v18M8 7l-4 5 4 5M16 7l4 5-4 5"/></svg></button>
+              <button class="tool active" id="edGrid" title="Сетка и подсказки (H)"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M4 15h16M10 4v16M15 4v16"/></svg></button>
+              <div class="tool-sep"></div>
+              <button class="tool" id="edUndo" title="Отменить (Ctrl+Z)"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+              <button class="tool" id="edRedo" title="Повторить (Ctrl+Y)"><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+            </div>
+            <div class="ed-canvas-wrap">
+              <canvas id="edCanvas" width="512" height="512"></canvas>
+              <div class="ed-info" id="edInfo">Наведи на скин</div>
+            </div>
+            <div class="ed-side">
+              <div class="ed-color">
+                <input type="color" id="edColor" value="#4ade80" />
+                <div>
+                  <div class="row-title">Цвет</div>
+                  <div class="row-sub" id="edHex">#4ADE80</div>
+                </div>
+              </div>
+              <div class="ed-label">Палитра</div>
+              <div class="ed-palette" id="edPalette"></div>
+              <div class="ed-label">Недавние</div>
+              <div class="ed-palette" id="edRecent"></div>
+              <div class="ed-label">Слой</div>
+              <div class="seg full" id="edLayer">
+                <button class="active" data-layer="all">Оба</button>
+                <button data-layer="base">Основа</button>
+              </div>
+              <div class="spacer"></div>
+              <button class="btn ghost" id="edClear">Очистить всё</button>
+              <button class="btn ghost" id="edExport">Скачать PNG</button>
+              <div class="ed-actions">
+                <button class="btn ghost" id="edCancel">Отмена</button>
+                <button class="btn primary" id="edSave">Сохранить</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="page-about">
+        <div class="page-head"><h2>Ещё</h2></div>
+        <div class="settings">
+          <div class="card">
+            <h3>Обновления</h3>
+            <div class="row">
+              <div>
+                <div class="row-title">Версия <span id="aboutVer"></span></div>
+                <div class="row-sub">Лаунчер сам проверяет обновления при запуске</div>
+              </div>
+              <button class="btn" id="checkUpdates">Проверить</button>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Java Edition</h3>
+            <div class="row-sub">Java-версия Minecraft на телефоне не запускается. Скачай Sigma Launcher на компьютер — там все версии от альф до снапшотов, Java ставится сама.</div>
+            <button class="btn wide" id="pcLink" style="margin-top:12px">Ссылка на ПК-версию</button>
+          </div>
+        </div>
+      </section>
+  </main>
+
+  <nav class="m-tabs">
+    <button class="nav active" data-page="bedrock">
+      <svg viewBox="0 0 24 24"><path d="M12 2l9 5v10l-9 5-9-5V7z"/><path d="M12 12l9-5M12 12v10M12 12L3 7"/></svg><span>Играть</span>
+    </button>
+    <button class="nav" data-page="skin">
+      <svg viewBox="0 0 24 24"><path d="M8 3h8l4 4-3 2v12H7V9L4 7z"/></svg><span>Скин</span>
+    </button>
+    <button class="nav" data-page="about">
+      <svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><span>Ещё</span>
+    </button>
+  </nav>
+
+  <div class="toast" id="toast"></div>
+  <script src="api-mobile.js"></script>
+  <script src="mobile.js"></script>
+  <script src="vendor/skinview3d.bundle.js"></script>
+  <script src="skin.js"></script>
+  <script src="editor.js"></script>
+  <script src="bedrock.js"></script>
+  <script>document.querySelector('.nav[data-page=bedrock]').click();</script>
+</body>
+</html>
