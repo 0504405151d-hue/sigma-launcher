@@ -1,0 +1,46 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'scripts/**'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set version
+        shell: bash
+        run: |
+          VERSION="1.1.${{ github.run_number }}"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          npm pkg set version="$VERSION"
+
+      - run: npm ci
+
+      - name: Build exe
+        run: npm run dist
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: Sigma Launcher v${{ env.VERSION }}
+          body: ${{ github.event.head_commit.message }}
+          files: dist/SigmaLauncher-portable.exe
+          make_latest: true

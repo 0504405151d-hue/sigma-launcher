@@ -1,0 +1,49 @@
+{
+  "name": "sigma-launcher",
+  "productName": "Sigma Launcher",
+  "version": "1.1.0",
+  "description": "Minecraft launcher: все версии, офлайн-вход, автоскачивание Java",
+  "main": "src/main.js",
+  "author": "Sigma Boy",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable --publish never",
+    "postinstall": "node scripts/patch-mclc.js"
+  },
+  "dependencies": {
+    "adm-zip": "^0.5.18",
+    "extract-zip": "^2.0.1",
+    "minecraft-launcher-core": "^3.18.2"
+  },
+  "devDependencies": {
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3",
+    "skinview3d": "^3.4.2"
+  },
+  "build": {
+    "appId": "com.sigmaboy.launcher",
+    "productName": "Sigma Launcher",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "SigmaLauncher-portable.exe"
+    }
+  },
+  "updateRepo": "0504405151d-hue/sigma-launcher",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/0504405151d-hue/sigma-launcher.git"
+  }
+}

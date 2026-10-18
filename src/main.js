@@ -1,0 +1,508 @@
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron');
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const { execFile } = require('child_process');
+const { Readable } = require('stream');
+const { pipeline } = require('stream/promises');
+const { Client, Authenticator } = require('minecraft-launcher-core');
+const extractZip = require('extract-zip');
+
+const DATA = path.join(app.getPath('appData'), '.sigmalauncher');
+const SETTINGS_FILE = path.join(DATA, 'settings.json');
+const JAVA_DIR = path.join(DATA, 'java');
+const MANIFEST_URL = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json';
+
+const DEFAULTS = {
+  nickname: 'Player',
+  version: null,
+  showSnapshots: false,
+  showOld: false,
+  ramMax: 4096,
+  ramMin: 1024,
+  width: 1280,
+  height: 720,
+  fullscreen: false,
+  gameDir: path.join(DATA, 'minecraft'),
+  jvmArgs: '',
+  customJava: '',
+  closeOnLaunch: true,
+  skinEnabled: true
+};
+
+const SKIN_FILE = path.join(DATA, 'skin.png');
+const PACK_NAME = 'SigmaSkin.zip';
+const PKG = require('../package.json');
+const APP_VERSION = PKG.version;
+const UPDATE_REPO = (PKG.updateRepo || '').trim();
+
+let win = null;
+let manifestCache = null;
+let gameRunning = false;
+let pendingUpdate = null;
+
+/* ---------- settings ---------- */
+function loadSettings() {
+  try {
+    return { ...DEFAULTS, ...JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8')) };
+  } catch {
+    return { ...DEFAULTS };
+  }
+}
+function saveSettings(s) {
+  fs.mkdirSync(DATA, { recursive: true });
+  fs.writeFileSync(SETTINGS_FILE, JSON.stringify({ ...loadSettings(), ...s }, null, 2));
+}
+
+/* ---------- helpers ---------- */
+const send = (ch, data) => win && !win.isDestroyed() && win.webContents.send(ch, data);
+
+async function getJson(url) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`HTTP ${r.status}: ${url}`);
+  return r.json();
+}
+
+async function getManifest() {
+  if (!manifestCache) manifestCache = await getJson(MANIFEST_URL);
+  return manifestCache;
+}
+
+function isInstalled(gameDir, id) {
+  return fs.existsSync(path.join(gameDir, 'versions', id, `${id}.jar`));
+}
+
+/* ---------- Java auto-download (Eclipse Temurin) ---------- */
+function pickJava(major) {
+  if (!major || major <= 8) return 8;
+  if (major <= 17) return 17;
+  if (major <= 21) return 21;
+  return major;
+}
+
+function findJavaBin(dir) {
+  const exe = process.platform === 'win32' ? 'javaw.exe' : 'java';
+  const stack = [dir];
+  while (stack.length) {
+    const d = stack.pop();
+    let entries;
+    try { entries = fs.readdirSync(d, { withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) stack.push(p);
+      else if (e.name === exe && path.basename(d) === 'bin') return p;
+    }
+  }
+  return null;
+}
+
+async function ensureJava(major) {
+  const ver = pickJava(major);
+  const target = path.join(JAVA_DIR, String(ver));
+  const existing = fs.existsSync(target) && findJavaBin(target);
+  if (existing) return existing;
+
+  const osName = { win32: 'windows', darwin: 'mac', linux: 'linux' }[process.platform];
+  const arch = process.arch === 'arm64' ? 'aarch64' : 'x64';
+  const url = `https://api.adoptium.net/v3/binary/latest/${ver}/ga/${osName}/${arch}/jre/hotspot/normal/eclipse`;
+
+  send('status', { text: `Скачиваю Java ${ver}...`, percent: 0 });
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`Не удалось скачать Java ${ver} (HTTP ${r.status})`);
+
+  const total = Number(r.headers.get('content-length')) || 0;
+  const isZip = process.platform === 'win32';
+  const archive = path.join(JAVA_DIR, `java${ver}.${isZip ? 'zip' : 'tar.gz'}`);
+  fs.mkdirSync(target, { recursive: true });
+
+  let done = 0;
+  const body = Readable.fromWeb(r.body);
+  body.on('data', (c) => {
+    done += c.length;
+    if (total) send('status', { text: `Скачиваю Java ${ver}...`, percent: (done / total) * 100 });
+  });
+  await pipeline(body, fs.createWriteStream(archive));
+
+  send('status', { text: `Распаковываю Java ${ver}...`, percent: 100 });
+  if (isZip) {
+    await extractZip(archive, { dir: target });
+  } else {
+    await new Promise((res, rej) =>
+      execFile('tar', ['-xzf', archive, '-C', target], (e) => (e ? rej(e) : res()))
+    );
+  }
+  fs.rmSync(archive, { force: true });
+
+  const bin = findJavaBin(target);
+  if (!bin) throw new Error('Java скачана, но исполняемый файл не найден');
+  if (process.platform !== 'win32') fs.chmodSync(bin, 0o755);
+  return bin;
+}
+
+/* ---------- natives for old versions (fix MCLC duplicate-unlink bug) ---------- */
+const AdmZip = require('adm-zip');
+const OS_NAME = { win32: 'windows', darwin: 'osx', linux: 'linux' }[process.platform];
+
+function libAllowed(lib) {
+  if (!lib.rules) return true;
+  let allowed = false;
+  for (const r of lib.rules) {
+    const match = !r.os || r.os.name === OS_NAME;
+    if (match) allowed = r.action === 'allow';
+  }
+  return allowed;
+}
+
+async function prepareNatives(vjson, gameDir) {
+  const dir = path.join(gameDir, 'natives', vjson.id);
+  const marker = path.join(dir, '.sigma-ok');
+  if (fs.existsSync(marker)) return;
+
+  const list = new Map();
+  for (const lib of vjson.libraries || []) {
+    const cls = lib.downloads?.classifiers;
+    if (!cls || !libAllowed(lib)) continue;
+    let key = lib.natives?.[OS_NAME] || `natives-${OS_NAME}`;
+    key = key.replace('${arch}', process.arch === 'ia32' ? '32' : '64');
+    const n = cls[key] || (OS_NAME === 'osx' ? cls['natives-macos'] : null);
+    if (n && !list.has(n.url)) list.set(n.url, n);
+  }
+  if (!list.size) return;
+
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+
+  let i = 0;
+  for (const n of list.values()) {
+    send('status', { text: 'Скачиваю нативные библиотеки...', percent: (i++ / list.size) * 100 });
+    const r = await fetch(n.url);
+    if (!r.ok) throw new Error(`Не удалось скачать ${n.url}`);
+    const zip = new AdmZip(Buffer.from(await r.arrayBuffer()));
+    for (const e of zip.getEntries()) {
+      if (e.isDirectory || e.entryName.startsWith('META-INF')) continue;
+      zip.extractEntryTo(e, dir, true, true);
+    }
+  }
+  fs.writeFileSync(marker, '1');
+}
+
+/* ---------- skin (local resource pack overriding default skins) ---------- */
+const { nativeImage } = require('electron');
+const DEFAULT_SKINS = ['steve', 'alex', 'ari', 'efe', 'kai', 'makena', 'noor', 'sunny', 'zuri'];
+
+function readOptions(file) {
+  try { return fs.readFileSync(file, 'utf8').split(/\r?\n/); } catch { return []; }
+}
+
+function setPackInOptions(gameDir, enable, modern) {
+  const file = path.join(gameDir, 'options.txt');
+  const lines = readOptions(file);
+  const entry = modern ? `file/${PACK_NAME}` : PACK_NAME;
+
+  const edit = (key, add, ensureVanilla) => {
+    const i = lines.findIndex((l) => l.startsWith(`${key}:`));
+    let arr = [];
+    if (i >= 0) { try { arr = JSON.parse(lines[i].slice(key.length + 1)); } catch { arr = []; } }
+    arr = arr.filter((x) => x !== PACK_NAME && x !== `file/${PACK_NAME}`);
+    if (add) {
+      if (ensureVanilla && !arr.includes('vanilla')) arr.unshift('vanilla');
+      arr.push(entry);
+    }
+    const line = `${key}:${JSON.stringify(arr)}`;
+    if (i >= 0) lines[i] = line;
+    else if (add) lines.push(line);
+  };
+
+  edit('resourcePacks', enable, modern);
+  if (modern) edit('incompatibleResourcePacks', enable, false);
+  fs.writeFileSync(file, lines.filter((l, idx) => l || idx < lines.length - 1).join('\n') + '\n');
+}
+
+function applySkin(vjson, gameDir) {
+  const t = new Date(vjson.releaseTime).getTime();
+  const SUPPORT_FROM = Date.parse('2013-06-13'); // 13w24a — resource packs
+  const SKIN64_FROM = Date.parse('2014-01-16');  // 14w03a — 64x64 skins
+  const MODERN_OPTS = Date.parse('2017-10-25');  // 17w43a+ — "file/" prefix
+  const s = loadSettings();
+  const modern = t >= MODERN_OPTS;
+  const packPath = path.join(gameDir, 'resourcepacks', PACK_NAME);
+
+  if (!s.skinEnabled || !fs.existsSync(SKIN_FILE) || t < SUPPORT_FROM) {
+    fs.rmSync(packPath, { force: true });
+    if (fs.existsSync(path.join(gameDir, 'options.txt'))) setPackInOptions(gameDir, false, modern);
+    if (s.skinEnabled && fs.existsSync(SKIN_FILE) && t < SUPPORT_FROM) {
+      send('log', '[skin] Эта версия слишком старая для скинов (нужна 1.6+)');
+    }
+    return;
+  }
+
+  let img = nativeImage.createFromPath(SKIN_FILE);
+  if (t < SKIN64_FROM) img = img.crop({ x: 0, y: 0, width: 64, height: 32 });
+  const png = img.toPNG();
+
+  const zip = new AdmZip();
+  zip.addFile('pack.mcmeta', Buffer.from(JSON.stringify({
+    pack: {
+      pack_format: 1,
+      supported_formats: [1, 9999],
+      min_format: 1,
+      max_format: 9999,
+      description: 'Sigma Launcher skin'
+    }
+  }, null, 2)));
+  const base = 'assets/minecraft/textures/entity/';
+  zip.addFile(`${base}steve.png`, png);
+  zip.addFile(`${base}alex.png`, png);
+  for (const n of DEFAULT_SKINS) {
+    zip.addFile(`${base}player/wide/${n}.png`, png);
+    zip.addFile(`${base}player/slim/${n}.png`, png);
+  }
+  fs.mkdirSync(path.dirname(packPath), { recursive: true });
+  zip.writeZip(packPath);
+  setPackInOptions(gameDir, true, modern);
+  send('log', '[skin] Скин применён');
+}
+
+ipcMain.handle('skin:get', () =>
+  fs.existsSync(SKIN_FILE) ? 'data:image/png;base64,' + fs.readFileSync(SKIN_FILE).toString('base64') : null
+);
+ipcMain.handle('skin:set', (_e, dataUrl) => {
+  const img = nativeImage.createFromDataURL(dataUrl);
+  const { width, height } = img.getSize();
+  if (width !== 64 || height !== 64) throw new Error('Скин должен быть 64×64');
+  fs.mkdirSync(DATA, { recursive: true });
+  fs.writeFileSync(SKIN_FILE, img.toPNG());
+  return true;
+});
+ipcMain.handle('skin:remove', () => { fs.rmSync(SKIN_FILE, { force: true }); return true; });
+
+/* ---------- self-update ---------- */
+function newer(a, b) {
+  const pa = String(a).replace(/^v/, '').split('.').map(Number);
+  const pb = String(b).replace(/^v/, '').split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return true;
+    if ((pa[i] || 0) < (pb[i] || 0)) return false;
+  }
+  return false;
+}
+
+ipcMain.handle('update:check', async () => {
+  if (!UPDATE_REPO) return { available: false };
+  try {
+    const r = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, {
+      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'SigmaLauncher' }
+    });
+    if (!r.ok) return { available: false };
+    const rel = await r.json();
+    const asset = (rel.assets || []).find((a) => a.name.toLowerCase().endsWith('.exe'));
+    const version = String(rel.tag_name || '').replace(/^v/, '');
+    if (asset && version && newer(version, APP_VERSION)) {
+      pendingUpdate = { version, url: asset.browser_download_url, notes: (rel.name || '').trim() };
+      return { available: true, version, notes: '' };
+    }
+  } catch { /* нет интернета — играем без проверки */ }
+  return { available: false };
+});
+
+ipcMain.handle('update:install', async () => {
+  if (!pendingUpdate) return false;
+  const exe = process.env.PORTABLE_EXECUTABLE_FILE;
+  if (!exe) { shell.openExternal(pendingUpdate.url); return false; }
+
+  const tmp = exe + '.new';
+  const r = await fetch(pendingUpdate.url);
+  if (!r.ok) throw new Error(`Не удалось скачать обновление (HTTP ${r.status})`);
+  const total = Number(r.headers.get('content-length')) || 0;
+  let done = 0;
+  const body = Readable.fromWeb(r.body);
+  body.on('data', (c) => {
+    done += c.length;
+    send('status', { text: `Скачиваю обновление v${pendingUpdate.version}...`, percent: total ? (done / total) * 100 : 0 });
+  });
+  await pipeline(body, fs.createWriteStream(tmp));
+  if (fs.statSync(tmp).size < 1024 * 1024) {
+    fs.rmSync(tmp, { force: true });
+    throw new Error('Скачанный файл обновления повреждён, попробуй ещё раз');
+  }
+
+  send('status', { text: 'Перезапуск...', percent: 100 });
+  const bat = path.join(os.tmpdir(), `sigma-update-${Date.now()}.cmd`);
+  fs.writeFileSync(bat, [
+    '@echo off',
+    'chcp 65001 >nul',
+    ':wait',
+    'timeout /t 1 /nobreak >nul',
+    `move /y "${tmp}" "${exe}" >nul 2>&1 || goto wait`,
+    `start "" "${exe}"`,
+    'del "%~f0"'
+  ].join('\r\n'));
+  require('child_process').spawn('cmd.exe', ['/c', bat], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  setTimeout(() => app.quit(), 300);
+  return true;
+});
+
+/* ---------- window ---------- */
+function createWindow() {
+  win = new BrowserWindow({
+    width: 1100,
+    height: 680,
+    minWidth: 900,
+    minHeight: 580,
+    frame: false,
+    backgroundColor: '#0d0f14',
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+  win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+  win.once('ready-to-show', () => win.show());
+}
+
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+app.whenReady().then(createWindow);
+app.on('window-all-closed', () => app.quit());
+
+/* ---------- IPC ---------- */
+ipcMain.on('win:min', () => win.minimize());
+ipcMain.on('win:max', () => (win.isMaximized() ? win.unmaximize() : win.maximize()));
+ipcMain.on('win:close', () => win.close());
+
+ipcMain.handle('settings:get', () => loadSettings());
+ipcMain.handle('settings:set', (_e, s) => { saveSettings(s); return loadSettings(); });
+ipcMain.handle('settings:reset', () => { saveSettings(DEFAULTS); return loadSettings(); });
+
+ipcMain.handle('system:info', () => ({
+  totalRam: Math.floor(os.totalmem() / 1024 / 1024),
+  platform: process.platform,
+  version: APP_VERSION
+}));
+
+ipcMain.handle('versions:list', async () => {
+  const s = loadSettings();
+  const m = await getManifest();
+  return {
+    latest: m.latest,
+    versions: m.versions.map((v) => ({
+      id: v.id,
+      type: v.type,
+      releaseTime: v.releaseTime,
+      installed: isInstalled(s.gameDir, v.id)
+    }))
+  };
+});
+
+ipcMain.handle('dialog:folder', async () => {
+  const r = await dialog.showOpenDialog(win, { properties: ['openDirectory', 'createDirectory'] });
+  return r.canceled ? null : r.filePaths[0];
+});
+
+ipcMain.handle('dialog:java', async () => {
+  const r = await dialog.showOpenDialog(win, {
+    properties: ['openFile'],
+    filters: [{ name: 'Java', extensions: process.platform === 'win32' ? ['exe'] : ['*'] }]
+  });
+  return r.canceled ? null : r.filePaths[0];
+});
+
+ipcMain.handle('open:folder', (_e, which) => {
+  const s = loadSettings();
+  const map = {
+    game: s.gameDir,
+    mods: path.join(s.gameDir, 'mods'),
+    screenshots: path.join(s.gameDir, 'screenshots'),
+    resourcepacks: path.join(s.gameDir, 'resourcepacks')
+  };
+  const dir = map[which] || s.gameDir;
+  fs.mkdirSync(dir, { recursive: true });
+  shell.openPath(dir);
+});
+
+ipcMain.handle('version:delete', (_e, id) => {
+  const s = loadSettings();
+  fs.rmSync(path.join(s.gameDir, 'versions', id), { recursive: true, force: true });
+  return true;
+});
+
+ipcMain.handle('game:launch', async () => {
+  if (gameRunning) throw new Error('Игра уже запущена');
+  if (pendingUpdate) throw new Error('Сначала обнови лаунчер');
+  const s = loadSettings();
+  const nick = (s.nickname || '').trim();
+  if (!/^[A-Za-z0-9_]{3,16}$/.test(nick)) {
+    throw new Error('Ник: 3–16 символов, только латиница, цифры и _');
+  }
+
+  const m = await getManifest();
+  const entry = m.versions.find((v) => v.id === s.version) ||
+    m.versions.find((v) => v.id === m.latest.release);
+  if (!entry) throw new Error('Версия не найдена');
+
+  gameRunning = true;
+  try {
+    send('status', { text: 'Получаю данные версии...', percent: 0 });
+    const vjson = await getJson(entry.url);
+    const javaPath = s.customJava && fs.existsSync(s.customJava)
+      ? s.customJava
+      : await ensureJava(vjson.javaVersion?.majorVersion);
+
+    fs.mkdirSync(s.gameDir, { recursive: true });
+    await prepareNatives(vjson, s.gameDir);
+    try { applySkin(vjson, s.gameDir); } catch (e) { send('log', `[skin] Ошибка: ${e.message}`); }
+
+    const launcher = new Client();
+    const opts = {
+      authorization: Authenticator.getAuth(nick),
+      root: s.gameDir,
+      version: { number: entry.id, type: entry.type },
+      memory: { max: `${s.ramMax}M`, min: `${Math.min(s.ramMin, s.ramMax)}M` },
+      javaPath,
+      window: s.fullscreen
+        ? { fullscreen: true }
+        : { width: Number(s.width) || 1280, height: Number(s.height) || 720 },
+      customArgs: s.jvmArgs ? s.jvmArgs.split(/\s+/).filter(Boolean) : [],
+      overrides: { detached: false, maxSockets: 8 }
+    };
+
+    let started = false;
+
+    launcher.on('debug', (l) => send('log', `[launcher] ${l}`));
+    launcher.on('data', (l) => {
+      send('log', String(l).trimEnd());
+      if (!started) {
+        started = true;
+        send('status', { text: 'Игра запущена', percent: 100, playing: true });
+        if (s.closeOnLaunch) win.hide();
+      }
+    });
+    launcher.on('progress', (p) => {
+      if (p.total) send('status', {
+        text: `Загрузка: ${p.type} (${p.task}/${p.total})`,
+        percent: (p.task / p.total) * 100
+      });
+    });
+    launcher.on('download-status', (d) => {
+      if (d.total && d.total > 1024 * 1024) send('status', {
+        text: `Скачиваю ${d.name}`,
+        percent: (d.current / d.total) * 100
+      });
+    });
+    launcher.on('close', (code) => {
+      gameRunning = false;
+      if (win.isDestroyed()) return;
+      win.show();
+      send('status', { text: code === 0 ? 'Готово к игре' : `Игра закрылась с кодом ${code}`, percent: 0, playing: false, finished: true, code });
+    });
+
+    send('status', { text: 'Проверяю файлы игры...', percent: 0 });
+    const proc = await launcher.launch(opts);
+    if (!proc) throw new Error('Не удалось запустить игру — смотри консоль');
+    return true;
+  } catch (e) {
+    gameRunning = false;
+    throw e;
+  }
+});

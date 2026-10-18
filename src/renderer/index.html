@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <title>Sigma Launcher</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Titlebar -->
+  <header class="titlebar">
+    <div class="brand">
+      <div class="logo"><span></span><span></span><span></span><span></span></div>
+      <b>SIGMA</b><i>launcher <span id="appVer"></span></i>
+    </div>
+    <div class="win-btns">
+      <button id="btnMin" title="Свернуть"><svg viewBox="0 0 12 12"><path d="M2 6h8"/></svg></button>
+      <button id="btnMax" title="Развернуть"><svg viewBox="0 0 12 12"><rect x="2.5" y="2.5" width="7" height="7"/></svg></button>
+      <button id="btnClose" class="close" title="Закрыть"><svg viewBox="0 0 12 12"><path d="M3 3l6 6M9 3l-6 6"/></svg></button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <nav class="sidebar">
+      <button class="nav active" data-page="home" title="Главная">
+        <svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg><span>Главная</span>
+      </button>
+      <button class="nav" data-page="versions" title="Версии">
+        <svg viewBox="0 0 24 24"><path d="M12 2l9 5-9 5-9-5zM3 12l9 5 9-5M3 17l9 5 9-5"/></svg><span>Версии</span>
+      </button>
+      <button class="nav" data-page="skin" title="Скин">
+        <svg viewBox="0 0 24 24"><path d="M8 3h8l4 4-3 2v12H7V9L4 7z"/></svg><span>Скин</span>
+      </button>
+      <button class="nav" data-page="settings" title="Настройки">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Настройки</span>
+      </button>
+      <button class="nav" data-page="console" title="Консоль">
+        <svg viewBox="0 0 24 24"><path d="M4 17l6-5-6-5M12 19h8"/></svg><span>Консоль</span>
+      </button>
+      <div class="spacer"></div>
+      <button class="nav small" id="openGameDir" title="Папка игры">
+        <svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>Папка</span>
+      </button>
+    </nav>
+
+    <main>
+      <!-- HOME -->
+      <section class="page active" id="page-home">
+        <div class="hero">
+          <div class="hero-grid"></div>
+          <div class="hero-glow"></div>
+          <div class="hero-content">
+            <div class="tag" id="latestTag">Загрузка версий...</div>
+            <h1>Строй.<br/>Исследуй.<br/><em>Выживай.</em></h1>
+            <p class="muted">Все версии Minecraft — от первых альф до последних снапшотов. Java скачивается сама.</p>
+          </div>
+          <div class="cube-wrap"><div class="cube">
+            <div class="f top"></div><div class="f front"></div><div class="f right"></div>
+            <div class="f back"></div><div class="f left"></div><div class="f bottom"></div>
+          </div></div>
+        </div>
+
+        <div class="play-bar">
+          <div class="field nick">
+            <label>Никнейм</label>
+            <input id="nickInput" maxlength="16" spellcheck="false" placeholder="Player" />
+          </div>
+          <div class="field vfield">
+            <label>Версия</label>
+            <button class="ver-pick" id="verPick"><span id="verPickText">—</span><svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg></button>
+          </div>
+          <button class="play" id="playBtn">
+            <span class="play-label">ИГРАТЬ</span>
+            <span class="play-sub" id="playSub">Готово</span>
+          </button>
+        </div>
+
+        <div class="progress-wrap" id="progressWrap">
+          <div class="progress-text"><span id="statusText">Готово к игре</span><span id="statusPct"></span></div>
+          <div class="progress"><div id="progressBar"></div></div>
+        </div>
+
+        <div class="quick">
+          <button class="chip" data-folder="mods">Моды</button>
+          <button class="chip" data-folder="resourcepacks">Ресурспаки</button>
+          <button class="chip" data-folder="screenshots">Скриншоты</button>
+        </div>
+      </section>
+
+      <!-- VERSIONS -->
+      <section class="page" id="page-versions">
+        <div class="page-head">
+          <h2>Версии</h2>
+          <div class="search">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <input id="verSearch" placeholder="Поиск, например 1.20" spellcheck="false" />
+          </div>
+        </div>
+        <div class="filters">
+          <button class="filter active" data-filter="release">Релизы</button>
+          <button class="filter" data-filter="snapshot">Снапшоты</button>
+          <button class="filter" data-filter="old">Beta / Alpha</button>
+          <button class="filter" data-filter="installed">Установленные</button>
+        </div>
+        <div class="ver-list" id="verList"></div>
+      </section>
+
+      <!-- SKIN -->
+      <section class="page" id="page-skin">
+        <div class="page-head"><h2>Скин</h2></div>
+        <div class="skin-layout">
+          <div class="skin-stage">
+            <canvas id="skinCanvas"></canvas>
+            <div class="skin-hint">Крути мышкой</div>
+          </div>
+          <div class="skin-side">
+            <div class="card">
+              <h3>Твой скин</h3>
+              <div class="skin-btns">
+                <button class="btn primary" id="skinUpload">Загрузить PNG</button>
+                <button class="btn ghost" id="skinRemove">Убрать</button>
+              </div>
+              <input type="file" id="skinFile" accept="image/png" hidden />
+              <div class="drop" id="skinDrop">или перетащи файл сюда</div>
+              <div class="row-sub">Подходят обычные скины 64×64 и старые 64×32.</div>
+            </div>
+            <div class="card">
+              <h3>Превью</h3>
+              <div class="seg" id="skinModel">
+                <button class="active" data-model="default">Классическая</button>
+                <button data-model="slim">Тонкие руки</button>
+              </div>
+              <div class="seg" id="skinAnim">
+                <button class="active" data-anim="idle">Стоит</button>
+                <button data-anim="walk">Идёт</button>
+                <button data-anim="run">Бежит</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="row">
+                <div>
+                  <div class="row-title">Применять скин в игре</div>
+                  <div class="row-sub">Работает с версии 1.6. Скин видишь ты сам — другие игроки на сервере его не увидят.</div>
+                </div>
+                <label class="switch"><input type="checkbox" id="skinEnabled" /><span></span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section class="page" id="page-settings">
+        <div class="page-head"><h2>Настройки</h2></div>
+        <div class="settings">
+          <div class="card">
+            <h3>Память</h3>
+            <div class="row">
+              <div>
+                <div class="row-title">Максимум RAM</div>
+                <div class="row-sub">Всего в системе: <span id="totalRam">—</span> МБ</div>
+              </div>
+              <div class="ram-val"><span id="ramVal">4096</span> МБ</div>
+            </div>
+            <input type="range" id="ramMax" min="1024" max="16384" step="256" />
+            <div class="ram-presets">
+              <button class="chip" data-ram="2048">2 ГБ</button>
+              <button class="chip" data-ram="4096">4 ГБ</button>
+              <button class="chip" data-ram="6144">6 ГБ</button>
+              <button class="chip" data-ram="8192">8 ГБ</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Окно игры</h3>
+            <div class="row">
+              <div class="row-title">Полный экран</div>
+              <label class="switch"><input type="checkbox" id="fullscreen" /><span></span></label>
+            </div>
+            <div class="row res">
+              <div class="row-title">Разрешение</div>
+              <div class="res-inputs">
+                <input type="number" id="width" min="640" /> <span>×</span> <input type="number" id="height" min="480" />
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Лаунчер</h3>
+            <div class="row">
+              <div>
+                <div class="row-title">Скрывать лаунчер во время игры</div>
+                <div class="row-sub">Вернётся, когда закроешь игру</div>
+              </div>
+              <label class="switch"><input type="checkbox" id="closeOnLaunch" /><span></span></label>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Продвинутое</h3>
+            <div class="row col">
+              <div class="row-title">Папка игры</div>
+              <div class="path-row">
+                <input id="gameDir" readonly />
+                <button class="btn" id="pickGameDir">Выбрать</button>
+              </div>
+            </div>
+            <div class="row col">
+              <div>
+                <div class="row-title">Своя Java</div>
+                <div class="row-sub">Пусто — лаунчер сам скачает нужную</div>
+              </div>
+              <div class="path-row">
+                <input id="customJava" placeholder="Авто" readonly />
+                <button class="btn" id="pickJava">Выбрать</button>
+                <button class="btn ghost" id="clearJava">Сброс</button>
+              </div>
+            </div>
+            <div class="row col">
+              <div class="row-title">Аргументы JVM</div>
+              <input id="jvmArgs" placeholder="-XX:+UseG1GC" spellcheck="false" />
+            </div>
+          </div>
+
+          <div class="settings-foot">
+            <button class="btn ghost" id="resetSettings">Сбросить всё</button>
+            <span class="saved" id="savedNote">Сохранено</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- CONSOLE -->
+      <section class="page" id="page-console">
+        <div class="page-head">
+          <h2>Консоль</h2>
+          <button class="btn ghost" id="clearLog">Очистить</button>
+        </div>
+        <pre class="console" id="console"></pre>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="vendor/skinview3d.bundle.js"></script>
+  <script src="renderer.js"></script>
+  <script src="skin.js"></script>
+</body>
+</html>
