@@ -5,7 +5,9 @@
   let currentSkin = null;
 
   /* placeholder skin (своя заглушка, не Стив) */
+  let placeholderCache = null;
   function placeholderSkin() {
+    if (placeholderCache) return placeholderCache;
     const c = document.createElement('canvas');
     c.width = 64; c.height = 64;
     const g = c.getContext('2d');
@@ -23,7 +25,8 @@
     // legs — тёмные джинсы
     fill('#1f2937', 0, 16, 16, 16); fill('#1f2937', 16, 48, 16, 16);
     fill('#111827', 4, 28, 4, 4); fill('#111827', 20, 60, 4, 4);
-    return c.toDataURL();
+    placeholderCache = c.toDataURL();
+    return placeholderCache;
   }
 
   let viewer;
@@ -137,6 +140,14 @@
     viewer.animation = anims[b.dataset.anim]();
     document.querySelectorAll('#skinAnim button').forEach((x) => x.classList.toggle('active', x === b));
   }));
+
+  window.skinUI = {
+    viewer,
+    show,
+    preview: (src) => viewer.loadSkin(src, { model }),
+    current: () => currentSkin || placeholderSkin(),
+    resize
+  };
 
   const toggle = document.getElementById('skinEnabled');
   toggle.onchange = () => api.setSettings({ skinEnabled: toggle.checked });

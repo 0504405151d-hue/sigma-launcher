@@ -119,6 +119,7 @@
               <h3>Твой скин</h3>
               <div class="skin-btns">
                 <button class="btn primary" id="skinUpload">Загрузить PNG</button>
+                <button class="btn" id="skinDraw">🖌 Нарисовать</button>
                 <button class="btn ghost" id="skinRemove">Убрать</button>
               </div>
               <input type="file" id="skinFile" accept="image/png" hidden />
@@ -144,6 +145,50 @@
                   <div class="row-sub">Работает с версии 1.6. Скин видишь ты сам — другие игроки на сервере его не увидят.</div>
                 </div>
                 <label class="switch"><input type="checkbox" id="skinEnabled" /><span></span></label>
+              </div>
+            </div>
+          </div>
+
+          <div class="skin-editor" id="skinEditor">
+            <div class="ed-tools">
+              <button class="tool active" data-tool="pen" title="Карандаш (B)"><svg viewBox="0 0 24 24"><path d="M4 20l4-1L19 8l-3-3L5 16z"/><path d="M14 7l3 3"/></svg></button>
+              <button class="tool" data-tool="eraser" title="Ластик (E)"><svg viewBox="0 0 24 24"><path d="M7 21h10M5 15l9-9 5 5-9 9H8z"/><path d="M10 10l5 5"/></svg></button>
+              <button class="tool" data-tool="fill" title="Заливка (G)"><svg viewBox="0 0 24 24"><path d="M5 11l7-7 7 7-7 7z"/><path d="M20 15s2 2.5 2 4a2 2 0 0 1-4 0c0-1.5 2-4 2-4z"/></svg></button>
+              <button class="tool" data-tool="picker" title="Пипетка (I)"><svg viewBox="0 0 24 24"><path d="M15 4l5 5-2 2-5-5zM13 6L4 15v5h5l9-9"/></svg></button>
+              <div class="tool-sep"></div>
+              <button class="tool" id="edMirror" title="Зеркально для рук и ног (M)"><svg viewBox="0 0 24 24"><path d="M12 3v18M8 7l-4 5 4 5M16 7l4 5-4 5"/></svg></button>
+              <button class="tool active" id="edGrid" title="Сетка и подсказки (H)"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M4 15h16M10 4v16M15 4v16"/></svg></button>
+              <div class="tool-sep"></div>
+              <button class="tool" id="edUndo" title="Отменить (Ctrl+Z)"><svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+              <button class="tool" id="edRedo" title="Повторить (Ctrl+Y)"><svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+            </div>
+            <div class="ed-canvas-wrap">
+              <canvas id="edCanvas" width="512" height="512"></canvas>
+              <div class="ed-info" id="edInfo">Наведи на скин</div>
+            </div>
+            <div class="ed-side">
+              <div class="ed-color">
+                <input type="color" id="edColor" value="#4ade80" />
+                <div>
+                  <div class="row-title">Цвет</div>
+                  <div class="row-sub" id="edHex">#4ADE80</div>
+                </div>
+              </div>
+              <div class="ed-label">Палитра</div>
+              <div class="ed-palette" id="edPalette"></div>
+              <div class="ed-label">Недавние</div>
+              <div class="ed-palette" id="edRecent"></div>
+              <div class="ed-label">Слой</div>
+              <div class="seg full" id="edLayer">
+                <button class="active" data-layer="all">Оба</button>
+                <button data-layer="base">Основа</button>
+              </div>
+              <div class="spacer"></div>
+              <button class="btn ghost" id="edClear">Очистить всё</button>
+              <button class="btn ghost" id="edExport">Скачать PNG</button>
+              <div class="ed-actions">
+                <button class="btn ghost" id="edCancel">Отмена</button>
+                <button class="btn primary" id="edSave">Сохранить</button>
               </div>
             </div>
           </div>
@@ -245,5 +290,6 @@
   <script src="vendor/skinview3d.bundle.js"></script>
   <script src="renderer.js"></script>
   <script src="skin.js"></script>
+  <script src="editor.js"></script>
 </body>
 </html>
