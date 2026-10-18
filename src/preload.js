@@ -25,6 +25,12 @@ contextBridge.exposeInMainWorld('api', {
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
 
-  onStatus:(cb) => ipcRenderer.on('status', (_e, d) => cb(d)),
+  bedrockStatus: () => ipcRenderer.invoke('bedrock:status'),
+  bedrockLaunch: () => ipcRenderer.invoke('bedrock:launch'),
+  bedrockStore: () => ipcRenderer.invoke('bedrock:store'),
+  bedrockConnect: (h, p) => ipcRenderer.invoke('bedrock:connect', h, p),
+  bedrockPing: (h, p) => ipcRenderer.invoke('bedrock:ping', h, p),
+
+  onStatus: (cb) => ipcRenderer.on('status', (_e, d) => cb(d)),
   onLog: (cb) => ipcRenderer.on('log', (_e, d) => cb(d))
 });

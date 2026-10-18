@@ -27,7 +27,12 @@ const DEFAULTS = {
   jvmArgs: '',
   customJava: '',
   closeOnLaunch: true,
-  skinEnabled: true
+  skinEnabled: true,
+  bedrockServers: [
+    { name: 'The Hive', host: 'geo.hivebedrock.network', port: 19132 },
+    { name: 'CubeCraft', host: 'mco.cubecraft.net', port: 19132 },
+    { name: 'Lifeboat', host: 'mco.lbsg.net', port: 19132 }
+  ]
 };
 
 const SKIN_FILE = path.join(DATA, 'skin.png');
@@ -275,6 +280,55 @@ ipcMain.handle('skin:set', (_e, dataUrl) => {
   return true;
 });
 ipcMain.handle('skin:remove', () => { fs.rmSync(SKIN_FILE, { force: true }); return true; });
+
+/* ---------- Bedrock ---------- */
+const dgram = require('dgram');
+const BEDROCK_STORE = 'ms-windows-store://pdp/?productid=9NBLGGH2JHXJ';
+
+ipcMain.handle('bedrock:status', () => new Promise((resolve) => {
+  if (process.platform !== 'win32') return resolve({ supported: false, installed: false });
+  execFile('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
+    '(Get-AppxPackage -Name Microsoft.MinecraftUWP | Select-Object -First 1).Version'],
+  { timeout: 15000, windowsHide: true }, (err, out) => {
+    const version = String(out || '').trim();
+    resolve({ supported: true, installed: !err && !!version, version });
+  });
+}));
+
+ipcMain.handle('bedrock:launch', () => shell.openExternal('minecraft:'));
+ipcMain.handle('bedrock:store', () => shell.openExternal(BEDROCK_STORE));
+ipcMain.handle('bedrock:connect', (_e, host, port) =>
+  shell.openExternal(`minecraft://connect/?serverUrl=${encodeURIComponent(host)}&serverPort=${Number(port) || 19132}`)
+);
+
+// RakNet unconnected ping — онлайн, версия и пинг сервера
+ipcMain.handle('bedrock:ping', (_e, host, port) => new Promise((resolve) => {
+  const sock = dgram.createSocket('udp4');
+  const MAGIC = Buffer.from('00ffff00fefefefefdfdfdfd12345678', 'hex');
+  const pkt = Buffer.alloc(33);
+  pkt[0] = 0x01;
+  pkt.writeBigInt64BE(BigInt(Date.now()), 1);
+  MAGIC.copy(pkt, 9);
+  pkt.writeBigInt64BE(BigInt(Math.floor(Math.random() * 1e15)), 25);
+  const started = Date.now();
+  const done = (r) => { clearTimeout(t); try { sock.close(); } catch {} resolve(r); };
+  const t = setTimeout(() => done({ online: false }), 3000);
+  sock.on('error', () => done({ online: false }));
+  sock.on('message', (msg) => {
+    if (msg[0] !== 0x1c) return;
+    const len = msg.readUInt16BE(33);
+    const parts = msg.slice(35, 35 + len).toString('utf8').split(';');
+    done({
+      online: true,
+      ping: Date.now() - started,
+      motd: (parts[1] || '').replace(/§./g, ''),
+      version: parts[3] || '',
+      players: Number(parts[4]) || 0,
+      max: Number(parts[5]) || 0
+    });
+  });
+  sock.send(pkt, Number(port) || 19132, host, (e) => e && done({ online: false }));
+}));
 
 /* ---------- self-update ---------- */
 function newer(a, b) {
