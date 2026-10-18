@@ -293,7 +293,7 @@ ipcMain.handle('update:check', async () => {
     const r = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, {
       headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'SigmaLauncher' }
     });
-    if (!r.ok) return { available: false };
+    if (!r.ok) return { available: false, error: `GitHub ответил ${r.status}` };
     const rel = await r.json();
     const asset = (rel.assets || []).find((a) => a.name.toLowerCase().endsWith('.exe'));
     const version = String(rel.tag_name || '').replace(/^v/, '');
@@ -301,8 +301,10 @@ ipcMain.handle('update:check', async () => {
       pendingUpdate = { version, url: asset.browser_download_url, notes: (rel.name || '').trim() };
       return { available: true, version, notes: '' };
     }
-  } catch { /* нет интернета — играем без проверки */ }
-  return { available: false };
+    return { available: false, latest: version };
+  } catch (e) {
+    return { available: false, error: 'нет связи с GitHub' };
+  }
 });
 
 ipcMain.handle('update:install', async () => {

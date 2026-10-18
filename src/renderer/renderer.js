@@ -96,6 +96,7 @@ $('#pickJava').onclick = async () => {
   if (p) { await save({ customJava: p }); $('#customJava').value = p; }
 };
 $('#clearJava').onclick = async () => { await save({ customJava: '' }); $('#customJava').value = ''; };
+$('#checkUpdates').onclick = () => checkForUpdate(true);
 $('#resetSettings').onclick = async () => {
   settings = await api.resetSettings();
   fillSettings();
@@ -230,6 +231,15 @@ function setBusy(b) {
   if (!b) updateVersionLabel();
 }
 
+let lastCheck = 0;
+async function checkForUpdate(manual = false) {
+  lastCheck = Date.now();
+  if (update || busy) return;
+  const u = await api.checkUpdate();
+  if (u.available) { update = u; showUpdate(); if (manual) toast(`Найдено обновление v${u.version}`, true); }
+  else if (manual) toast(u.error ? `Не удалось проверить: ${u.error}` : 'У тебя последняя версия', !u.error);
+}
+
 function showUpdate() {
   const btn = $('#playBtn');
   btn.classList.add('update');
@@ -300,6 +310,7 @@ $('#clearLog').onclick = () => { con.innerHTML = ''; lines = 0; };
   if (settings.ramMax > maxRam) await save({ ramMax: maxRam });
   fillSettings();
   await loadVersions();
-  const u = await api.checkUpdate();
-  if (u.available) { update = u; showUpdate(); }
+  await checkForUpdate();
+  setInterval(checkForUpdate, 10 * 60 * 1000);
+  window.addEventListener('focus', () => { if (Date.now() - lastCheck > 60 * 1000) checkForUpdate(); });
 })();
