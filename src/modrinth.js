@@ -43,8 +43,11 @@ async function ensureFabric(root, mc, log) {
 /* ---------- Modrinth ---------- */
 async function search({ query, type, mc, offset = 0, sort = 'relevance' }) {
   const t = TYPES[type] || TYPES.mod;
-  const facets = [[t.facet], [`versions:${mc}`]];
+  // шейдеры почти не зависят от версии игры — не режем по ней поиск
+  const facets = [[t.facet]];
+  if (type !== 'shader') facets.push([`versions:${mc}`]);
   if (type === 'mod') facets.push(['categories:fabric']);
+  if (type === 'shader') facets.push(['categories:iris']);
   const url = `${MR}/search?limit=20&offset=${offset}&index=${sort}` +
     `&query=${encodeURIComponent(query || '')}&facets=${encodeURIComponent(JSON.stringify(facets))}`;
   const r = await json(url);
@@ -65,9 +68,12 @@ async function search({ query, type, mc, offset = 0, sort = 'relevance' }) {
 
 async function latestVersion(project, type, mc) {
   const t = TYPES[type];
-  const list = await json(`${MR}/project/${encodeURIComponent(project)}/version` +
-    `?loaders=${encodeURIComponent(JSON.stringify(t.loaders))}&game_versions=${encodeURIComponent(JSON.stringify([mc]))}`);
-  return list[0] || null;
+  const base = `${MR}/project/${encodeURIComponent(project)}/version` +
+    `?loaders=${encodeURIComponent(JSON.stringify(t.loaders))}`;
+  const list = await json(`${base}&game_versions=${encodeURIComponent(JSON.stringify([mc]))}`);
+  if (list[0] || type !== 'shader') return list[0] || null;
+  // шейдер без точной версии игры — берём самую свежую, обычно он работает
+  return (await json(base))[0] || null;
 }
 
 async function download(url, dest) {

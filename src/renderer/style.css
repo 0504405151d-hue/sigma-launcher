@@ -612,3 +612,12 @@ input[type=range]::-webkit-slider-thumb {
 .more[hidden] { display: none; }
 .bar-row { grid-template-columns: 96px 1fr 92px; }
 .bar-val { white-space: nowrap; }
+
+.mods-warn {
+  display: flex; align-items: center; gap: 16px; padding: 16px 18px; border-radius: 14px;
+  background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.3);
+}
+.mods-warn div { flex: 1; display: flex; flex-direction: column; gap: 4px; }
+.mods-warn b { color: #fde68a; }
+.mods-warn span { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.mod-icon[src=""], .mod-icon:not([src]) { visibility: hidden; }

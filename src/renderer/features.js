@@ -268,6 +268,21 @@
     }
     el('modMore').hidden = true;
 
+    const mc = settings.version || latest.release;
+    if ((mtype === 'mod' || mtype === 'shader') && mc && !(await api.fabricSupported(mc))) {
+      if (my !== reqId) return;
+      list.innerHTML = `
+        <div class="mods-warn">
+          <div>
+            <b>Для версии ${esc(mc)} ${mtype === 'mod' ? 'модов' : 'шейдеров'} нет</b>
+            <span>Моды и шейдеры работают на Fabric — это Minecraft 1.14 и новее. Сделай отдельную сборку под моды, а старая версия останется в своей.</span>
+          </div>
+          <button class="btn primary" id="modsNewProf">Создать сборку для модов</button>
+        </div>`;
+      el('modsNewProf').onclick = () => { go('profiles'); renderProfiles(); openModal(null); };
+      return;
+    }
+
     if (mtype === 'installed') {
       const items = await api.mrInstalled();
       if (my !== reqId) return;
