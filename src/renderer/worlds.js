@@ -33,6 +33,7 @@
       for (const w of g.items) {
         const row = document.createElement('div');
         row.className = 'world';
+        row.dataset.path = w.path;
         const icon = w.icon ? Object.assign(document.createElement('img'), { src: w.icon, className: 'world-icon' })
           : Object.assign(document.createElement('div'), { className: 'world-icon ph', textContent: '🌍' });
         row.appendChild(icon);

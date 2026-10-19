@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: https://cdn.modrinth.com https://*.modrinth.com; style-src 'self' 'unsafe-inline'; script-src 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob: file: https://cdn.modrinth.com https://*.modrinth.com; style-src 'self' 'unsafe-inline'; script-src 'self'" />
   <title>Sigma Launcher</title>
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -41,8 +41,14 @@
       <button class="nav" data-page="skin" title="Скин">
         <svg viewBox="0 0 24 24"><path d="M8 3h8l4 4-3 2v12H7V9L4 7z"/></svg><span>Скин</span>
       </button>
+      <button class="nav" data-page="servers" title="Серверы">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/><path d="M7 7.5h.01M7 16.5h.01"/></svg><span>Серверы</span>
+      </button>
       <button class="nav" data-page="worlds" title="Миры">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span>Миры</span>
+      </button>
+      <button class="nav" data-page="shots" title="Скриншоты">
+        <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg><span>Скрины</span>
       </button>
       <button class="nav" data-page="stats" title="Статистика">
         <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Статистика</span>
@@ -201,6 +207,39 @@
         <button class="btn ghost more" id="modMore" hidden>Показать ещё</button>
       </section>
 
+      <!-- SERVERS -->
+      <section class="page" id="page-servers">
+        <div class="page-head">
+          <div>
+            <h2>Серверы</h2>
+            <div class="muted mods-for" id="srvFor">—</div>
+          </div>
+          <button class="btn ghost" id="srvRefresh">Обновить</button>
+        </div>
+        <div class="hint">Жми <b>«Играть»</b> — игра запустится сразу на сервере. Вход по нику работает на серверах без лицензии; на лицензионных (Hypixel и т. п.) пустит только с купленным Minecraft.</div>
+        <div class="jsrv-list" id="srvList"></div>
+        <div class="card" style="margin:14px 0 20px">
+          <h3>Добавить сервер</h3>
+          <div class="add-row">
+            <input id="srvName" placeholder="Название" style="width:170px" spellcheck="false" />
+            <input id="srvAddr" placeholder="адрес, например mc.server.net или 1.2.3.4:25565" style="flex:1" spellcheck="false" />
+            <button class="btn primary" id="srvAdd">Добавить</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- SCREENSHOTS -->
+      <section class="page" id="page-shots">
+        <div class="page-head">
+          <div>
+            <h2>Скриншоты</h2>
+            <div class="muted mods-for" id="shotsCount">—</div>
+          </div>
+          <button class="btn ghost" id="shotsRefresh">Обновить</button>
+        </div>
+        <div class="shots" id="shotGrid"></div>
+      </section>
+
       <!-- WORLDS -->
       <section class="page" id="page-worlds">
         <div class="page-head">
@@ -212,6 +251,13 @@
         </div>
         <div class="hint">У каждой сборки свои миры. Если мир «пропал» — он лежит в другой сборке или в обычном Minecraft. Нажми <b>«Перенести сюда»</b>, и копия появится в текущей сборке. Оригинал не трогается.</div>
         <div class="world-list" id="worldList"></div>
+        <div class="card" style="margin-bottom:20px">
+          <div class="page-head" style="margin-bottom:8px">
+            <h3 style="margin:0">Бэкапы</h3>
+            <button class="btn ghost" id="backupsOpen">Открыть папку</button>
+          </div>
+          <div id="backupList"></div>
+        </div>
       </section>
 
       <!-- STATS -->
@@ -389,6 +435,11 @@
           </div>
 
           <div class="card">
+            <h3>Цвет лаунчера</h3>
+            <div class="accent-pick" id="accentPick"></div>
+          </div>
+
+          <div class="card">
             <h3>Окно игры</h3>
             <div class="row">
               <div class="row-title">Полный экран</div>
@@ -490,6 +541,19 @@
     </div>
   </div>
 
+  <div class="lightbox" id="lightbox" hidden>
+    <button class="lb-nav lb-prev" id="lbPrev" title="Предыдущий">‹</button>
+    <button class="lb-nav lb-next" id="lbNext" title="Следующий">›</button>
+    <img id="lbImg" alt="" />
+    <div class="lb-bar">
+      <span class="muted" id="lbInfo"></span>
+      <button class="btn primary" id="lbCopy">Копировать</button>
+      <button class="btn" id="lbShow">Показать в папке</button>
+      <button class="btn ghost" id="lbDel">Удалить</button>
+      <button class="btn ghost" id="lbClose">Закрыть</button>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
   <script src="vendor/skinview3d.bundle.js"></script>
   <script src="renderer.js"></script>
@@ -498,5 +562,6 @@
   <script src="bedrock.js"></script>
   <script src="features.js"></script>
   <script src="worlds.js"></script>
+  <script src="extras.js"></script>
 </body>
 </html>

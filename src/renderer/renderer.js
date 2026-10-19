@@ -277,13 +277,13 @@ async function installUpdate() {
   }
 }
 
-$('#playBtn').onclick = async () => {
-  if (busy) return;
-  if (update) return installUpdate();
+async function launchGame(extra = {}) {
+  if (busy) return toast('Игра уже запускается');
+  if (update) { go('home'); return installUpdate(); }
   setBusy(true);
-  log(`> Запуск ${currentVersionId()} как ${settings.nickname}`, 'info');
+  log(`> Запуск ${currentVersionId()} как ${settings.nickname}${extra.server ? ' на сервер ' + extra.server : ''}`, 'info');
   try {
-    await api.launch();
+    await api.launch(extra);
   } catch (e) {
     const msg = String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
     toast(msg);
@@ -291,7 +291,8 @@ $('#playBtn').onclick = async () => {
     setBusy(false);
     $('#progressWrap').classList.remove('show');
   }
-};
+}
+$('#playBtn').onclick = () => launchGame();
 
 api.onStatus((d) => {
   setStatus(d);
@@ -339,3 +340,38 @@ $('#clearLog').onclick = () => { con.innerHTML = ''; lines = 0; };
 })();
 
 document.addEventListener('visibilitychange', () => document.body.classList.toggle('idle', document.hidden));
+
+/* ---------- цвет лаунчера ---------- */
+const ACCENTS = {
+  green:  ['#4ade80', '#22c55e', '#15803d', '74,222,128', '#052e16'],
+  blue:   ['#60a5fa', '#3b82f6', '#1d4ed8', '96,165,250', '#0b1e3f'],
+  purple: ['#a78bfa', '#8b5cf6', '#6d28d9', '167,139,250', '#1e1038'],
+  pink:   ['#f472b6', '#ec4899', '#be185d', '244,114,182', '#3b0a24'],
+  orange: ['#fb923c', '#f97316', '#c2410c', '251,146,60', '#3a1504'],
+  red:    ['#f87171', '#ef4444', '#b91c1c', '248,113,113', '#3b0b0b']
+};
+function applyAccent(name) {
+  const a = ACCENTS[name] || ACCENTS.green;
+  const r = document.documentElement.style;
+  r.setProperty('--accent', a[0]);
+  r.setProperty('--accent2', a[1]);
+  r.setProperty('--accent-dark', a[2]);
+  r.setProperty('--accent-rgb', a[3]);
+  r.setProperty('--on-accent', a[4]);
+  document.querySelectorAll('#accentPick button').forEach((b) => b.classList.toggle('active', b.dataset.accent === name));
+}
+(async () => {
+  const box = document.getElementById('accentPick');
+  if (box) {
+    for (const [name, a] of Object.entries(ACCENTS)) {
+      const b = document.createElement('button');
+      b.dataset.accent = name;
+      b.style.background = a[0];
+      b.title = name;
+      b.onclick = () => { applyAccent(name); api.setSettings({ accent: name }); };
+      box.appendChild(b);
+    }
+  }
+  const s = await api.getSettings();
+  applyAccent(s.accent || 'green');
+})();

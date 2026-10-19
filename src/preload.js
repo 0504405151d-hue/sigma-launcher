@@ -12,7 +12,7 @@ contextBridge.exposeInMainWorld('api', {
 
   listVersions: () => ipcRenderer.invoke('versions:list'),
   deleteVersion: (id) => ipcRenderer.invoke('version:delete', id),
-  launch: () => ipcRenderer.invoke('game:launch'),
+  launch: (extra) => ipcRenderer.invoke('game:launch', extra || {}),
 
   pickFolder: () => ipcRenderer.invoke('dialog:folder'),
   pickJava: () => ipcRenderer.invoke('dialog:java'),
@@ -49,6 +49,19 @@ contextBridge.exposeInMainWorld('api', {
   worlds: () => ipcRenderer.invoke('worlds:list'),
   copyWorld: (p) => ipcRenderer.invoke('worlds:copy', p),
   openWorld: (p) => ipcRenderer.invoke('worlds:open', p),
+
+  pingJava: (addr) => ipcRenderer.invoke('jservers:ping', addr),
+
+  shots: () => ipcRenderer.invoke('shots:list'),
+  copyShot: (p) => ipcRenderer.invoke('shots:copy', p),
+  showShot: (p) => ipcRenderer.invoke('shots:show', p),
+  deleteShot: (p) => ipcRenderer.invoke('shots:delete', p),
+
+  backupWorld: (p) => ipcRenderer.invoke('backups:create', p),
+  backups: () => ipcRenderer.invoke('backups:list'),
+  restoreBackup: (f) => ipcRenderer.invoke('backups:restore', f),
+  deleteBackup: (f) => ipcRenderer.invoke('backups:delete', f),
+  openBackups: () => ipcRenderer.invoke('backups:open'),
 
   stats: () => ipcRenderer.invoke('stats:get'),
   resetStats: () => ipcRenderer.invoke('stats:reset'),

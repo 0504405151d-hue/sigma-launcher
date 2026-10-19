@@ -33,6 +33,8 @@ const DEFAULTS = {
   discordRpc: true,
   profiles: null,
   activeProfile: 'default',
+  accent: 'green',
+  javaServers: [],
   bedrockServers: [
     { name: 'The Hive', host: 'geo.hivebedrock.network', port: 19132 },
     { name: 'CubeCraft', host: 'mco.cubecraft.net', port: 19132 },
@@ -768,6 +770,103 @@ ipcMain.handle('worlds:open', (_e, p) => {
   if (list.some((x) => path.resolve(p).startsWith(path.resolve(x.dir) + path.sep))) shell.openPath(p);
 });
 
+/* ---------- серверы Java ---------- */
+const slp = require('./slp');
+function parseAddr(addr) {
+  const m = String(addr || '').trim().match(/^([^\s:]+)(?::(\d{1,5}))?$/);
+  return m ? { host: m[1].toLowerCase(), port: m[2] ? Number(m[2]) : null } : null;
+}
+ipcMain.handle('jservers:ping', async (_e, addr) => {
+  const a = parseAddr(addr);
+  if (!a) return { online: false };
+  let target = { host: a.host, port: a.port || 25565 };
+  if (!a.port) target = (await slp.resolveSrv(a.host)) || target;
+  return slp.ping(target.host, target.port);
+});
+
+/* ---------- скриншоты ---------- */
+const { pathToFileURL } = require('url');
+function shotDirs() {
+  const s = loadSettings();
+  return s.profiles.map((p) => ({ profile: p.name, dir: path.join(profileDir(s, p), 'screenshots') }));
+}
+function isShot(p) {
+  return shotDirs().some((d) => path.resolve(path.dirname(p)) === path.resolve(d.dir)) && /\.png$/i.test(p);
+}
+ipcMain.handle('shots:list', () => {
+  const out = [];
+  for (const { profile, dir } of shotDirs()) {
+    let files = [];
+    try { files = fs.readdirSync(dir); } catch { continue; }
+    for (const f of files) {
+      if (!/\.png$/i.test(f)) continue;
+      const full = path.join(dir, f);
+      try {
+        const st = fs.statSync(full);
+        out.push({ path: full, url: pathToFileURL(full).href, name: f, profile, time: st.mtimeMs, size: st.size });
+      } catch { /* файл пропал */ }
+    }
+  }
+  return out.sort((a, b) => b.time - a.time);
+});
+ipcMain.handle('shots:copy', (_e, p) => {
+  if (!isShot(p)) return false;
+  require('electron').clipboard.writeImage(nativeImage.createFromPath(p));
+  return true;
+});
+ipcMain.handle('shots:show', (_e, p) => { if (isShot(p)) shell.showItemInFolder(p); });
+ipcMain.handle('shots:delete', async (_e, p) => {
+  if (!isShot(p)) return false;
+  try { await shell.trashItem(p); } catch { fs.rmSync(p, { force: true }); }
+  return true;
+});
+
+/* ---------- бэкапы миров ---------- */
+const BACKUPS = path.join(DATA, 'backups');
+ipcMain.handle('backups:create', (_e, worldPath) => {
+  if (gameRunning) throw new Error('Закрой игру перед бэкапом — мир может сохраняться прямо сейчас');
+  const { list } = worldSources();
+  if (!list.some((x) => path.resolve(worldPath).startsWith(path.resolve(x.dir) + path.sep))) throw new Error('Неизвестный мир');
+  fs.mkdirSync(BACKUPS, { recursive: true });
+  const name = path.basename(worldPath);
+  const stamp = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-');
+  const file = path.join(BACKUPS, `${name.replace(/[\\/:*?"<>|]/g, '_')} ${stamp}.zip`);
+  const zip = new AdmZip();
+  zip.addLocalFolder(worldPath, name, (f) => !/session\.lock$/.test(f));
+  zip.writeZip(file);
+  return path.basename(file);
+});
+ipcMain.handle('backups:list', () => {
+  let files = [];
+  try { files = fs.readdirSync(BACKUPS).filter((f) => f.endsWith('.zip')); } catch { return []; }
+  return files.map((f) => {
+    const st = fs.statSync(path.join(BACKUPS, f));
+    return { file: f, world: f.replace(/ \d{4}-\d{2}-\d{2}_\d{2}-\d{2}\.zip$/, ''), time: st.mtimeMs, size: st.size };
+  }).sort((a, b) => b.time - a.time);
+});
+ipcMain.handle('backups:restore', (_e, file) => {
+  if (gameRunning) throw new Error('Закрой игру перед восстановлением');
+  const src = path.join(BACKUPS, path.basename(file));
+  if (!fs.existsSync(src)) throw new Error('Бэкап не найден');
+  const s = loadSettings();
+  const saves = path.join(s.profile.dir, 'saves');
+  fs.mkdirSync(saves, { recursive: true });
+  const zip = new AdmZip(src);
+  const top = zip.getEntries()[0]?.entryName.split('/')[0] || 'Мир';
+  let dest = path.join(saves, `${top} (из бэкапа)`);
+  for (let i = 2; fs.existsSync(dest); i++) dest = path.join(saves, `${top} (из бэкапа ${i})`);
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sigma-restore-'));
+  zip.extractAllTo(tmp, true);
+  fs.cpSync(path.join(tmp, top), dest, { recursive: true });
+  fs.rmSync(tmp, { recursive: true, force: true });
+  return path.basename(dest);
+});
+ipcMain.handle('backups:delete', (_e, file) => {
+  fs.rmSync(path.join(BACKUPS, path.basename(file)), { force: true });
+  return true;
+});
+ipcMain.handle('backups:open', () => { fs.mkdirSync(BACKUPS, { recursive: true }); shell.openPath(BACKUPS); });
+
 ipcMain.handle('profiles:open', (_e, id) => {
   const s = loadSettings();
   const p = s.profiles.find((x) => x.id === id);
@@ -963,7 +1062,7 @@ ipcMain.handle('stats:reset', () => { stats.reset(); return true; });
 ipcMain.handle('discord:available', () => discord.enabled());
 
 /* ---------- запуск игры ---------- */
-ipcMain.handle('game:launch', async () => {
+ipcMain.handle('game:launch', async (_e, extra = {}) => {
   if (gameRunning) throw new Error('Игра уже запущена');
   if (pendingUpdate) throw new Error('Сначала обнови лаунчер');
   const s = loadSettings();
@@ -1020,6 +1119,12 @@ ipcMain.handle('game:launch', async () => {
       customArgs: [...gcArgs, ...userArgs],
       overrides: { detached: false, maxSockets: 8, gameDirectory: gameDir, cwd: gameDir }
     };
+    if (extra.server) {
+      // с 23w14a есть «быстрая игра», в старых версиях — флаги --server/--port
+      const modern = new Date(vjson.releaseTime) >= new Date('2023-04-05');
+      opts.quickPlay = { type: modern ? 'multiplayer' : 'legacy', identifier: extra.server };
+      send('log', `[sigma] Подключение к серверу ${extra.server}`);
+    }
 
     let started = 0;
     const session = { version: entry.id, loader: prof.loader, profileId: prof.id, profileName: prof.name };
