@@ -591,6 +591,28 @@ ipcMain.handle('fabric:supported', async (_e, mc) => {
   try { return await modrinth.fabricSupports(mc); } catch { return false; }
 });
 
+/* ---------- Iris: включить/выключить шейдер ---------- */
+function setIrisShader(gameDir, file) {
+  const cfgDir = path.join(gameDir, 'config');
+  const cfg = path.join(cfgDir, 'iris.properties');
+  let lines = [];
+  try { lines = fs.readFileSync(cfg, 'utf8').split(/\r?\n/).filter(Boolean); } catch { /* файла ещё нет */ }
+  const set = (k, v) => {
+    const i = lines.findIndex((l) => l.startsWith(k + '='));
+    if (i >= 0) lines[i] = `${k}=${v}`; else lines.push(`${k}=${v}`);
+  };
+  if (file) { set('shaderPack', file); set('enableShaders', 'true'); }
+  else set('enableShaders', 'false');
+  fs.mkdirSync(cfgDir, { recursive: true });
+  fs.writeFileSync(cfg, lines.join('\n') + '\n');
+}
+function activeIrisShader(gameDir) {
+  try {
+    const m = fs.readFileSync(path.join(gameDir, 'config', 'iris.properties'), 'utf8').match(/^shaderPack=(.*)$/m);
+    return m ? m[1].trim() : null;
+  } catch { return null; }
+}
+
 /* ---------- Modrinth (IPC) ---------- */
 async function currentMc(s) {
   if (s.version) return s.version;
@@ -631,6 +653,10 @@ ipcMain.handle('mr:install', async (_e, { id, type }) => {
       await modrinth.install({ project: 'iris', type: 'mod', mc, gameDir: p.dir, content, log, depth: 1 });
     }
     const item = await modrinth.install({ project: id, type, mc, gameDir: p.dir, content, log });
+    if (type === 'shader' && item) {
+      setIrisShader(p.dir, item.file);
+      log(`[mods] Шейдер ${item.title} включён — он заработает при следующем запуске`);
+    }
     updateProfile(p.id, (prof) => {
       prof.content = content;
       if (switched) prof.loader = 'fabric';
@@ -645,7 +671,12 @@ ipcMain.handle('mr:install', async (_e, { id, type }) => {
 ipcMain.handle('mr:remove', (_e, id) => {
   const s = loadSettings();
   const content = { ...(s.profile.content || {}) };
+  const was = content[id];
   modrinth.remove({ id, gameDir: s.profile.dir, content });
+  if (was && was.type === 'shader' && activeIrisShader(s.profile.dir) === was.file) {
+    const next = Object.values(content).find((c) => c.type === 'shader');
+    setIrisShader(s.profile.dir, next ? next.file : null);
+  }
   updateProfile(s.profile.id, (prof) => { prof.content = content; });
   return true;
 });
@@ -745,6 +776,15 @@ ipcMain.handle('game:launch', async () => {
       win.show();
       send('status', { text: code === 0 ? 'Готово к игре' : `Игра закрылась с кодом ${code}`, percent: 0, playing: false, finished: true, code });
     });
+
+    const items = Object.values(prof.content || {});
+    const shader = activeIrisShader(gameDir);
+    send('log', `[sigma] Сборка «${prof.name}» · ${entry.id} · ${prof.loader === 'fabric' ? 'Fabric' : 'Ванилла'}` +
+      ` · модов: ${items.filter((c) => c.type === 'mod').length}` +
+      (prof.loader === 'fabric' && shader ? ` · шейдер: ${shader}` : ''));
+    if (prof.loader !== 'fabric' && items.some((c) => c.type !== 'resourcepack')) {
+      send('log', '[sigma] ВНИМАНИЕ: в сборке есть моды, но она запускается без Fabric — моды не загрузятся');
+    }
 
     send('status', { text: 'Проверяю файлы игры...', percent: 0 });
     const proc = await launcher.launch(opts);
