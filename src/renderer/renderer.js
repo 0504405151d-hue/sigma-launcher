@@ -305,6 +305,10 @@ $('#clearLog').onclick = () => { con.innerHTML = ''; lines = 0; };
   const info = await api.systemInfo();
   $('#totalRam').textContent = info.totalRam;
   $('#appVer').textContent = 'v' + info.version;
+  if (settings.lastSeenVersion && settings.lastSeenVersion !== info.version) {
+    setTimeout(() => toast(`Лаунчер обновлён до v${info.version} 🎉`, true), 600);
+  }
+  if (settings.lastSeenVersion !== info.version) api.setSettings({ lastSeenVersion: info.version });
   const maxRam = Math.max(2048, Math.floor((info.totalRam * 0.8) / 256) * 256);
   $('#ramMax').max = maxRam;
   if (settings.ramMax > maxRam) await save({ ramMax: maxRam });
