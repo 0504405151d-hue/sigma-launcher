@@ -380,8 +380,7 @@
     const s = await api.getSettings();
     el('discordRpc').checked = s.discordRpc !== false;
     if (!(await api.discordAvailable())) {
-      el('discordRpc').disabled = true;
-      el('discordNote').textContent = 'Скоро: появится в одном из обновлений';
+      el('discordRpc').closest('.row').remove();
     }
     settings = { ...settings, ...s };
     refreshHome();
