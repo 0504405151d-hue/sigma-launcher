@@ -409,6 +409,10 @@
     renderStats();
   };
 
+  /* ---------- производительность ---------- */
+  el('optimize').onchange = (e) => save({ optimize: e.target.checked });
+  el('goFpsPreset').onclick = () => { go('profiles'); renderProfiles(); };
+
   /* ---------- Discord ---------- */
   el('discordRpc').onchange = (e) => save({ discordRpc: e.target.checked });
 
@@ -430,6 +434,7 @@
   (async () => {
     const s = await api.getSettings();
     el('discordRpc').checked = s.discordRpc !== false;
+    el('optimize').checked = s.optimize !== false;
     if (!(await api.discordAvailable())) {
       el('discordRpc').closest('.row').remove();
     }

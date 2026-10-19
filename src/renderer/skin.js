@@ -50,6 +50,14 @@
   viewer.controls.enableZoom = false;
 
   const resize = () => viewer.setSize(stage.clientWidth, stage.clientHeight);
+  // 3D-превью рисуется только когда вкладка «Скин» открыта и окно видно
+  const skinPage = document.getElementById('page-skin');
+  const syncPause = () => {
+    viewer.renderPaused = document.hidden || !skinPage.classList.contains('active');
+  };
+  new MutationObserver(syncPause).observe(skinPage, { attributes: true, attributeFilter: ['class'] });
+  document.addEventListener('visibilitychange', syncPause);
+  syncPause();
   new ResizeObserver(resize).observe(stage);
 
   function show(url) {

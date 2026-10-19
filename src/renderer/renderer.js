@@ -318,3 +318,5 @@ $('#clearLog').onclick = () => { con.innerHTML = ''; lines = 0; };
   setInterval(checkForUpdate, 10 * 60 * 1000);
   window.addEventListener('focus', () => { if (Date.now() - lastCheck > 60 * 1000) checkForUpdate(); });
 })();
+
+document.addEventListener('visibilitychange', () => document.body.classList.toggle('idle', document.hidden));

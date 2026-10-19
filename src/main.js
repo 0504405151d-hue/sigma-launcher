@@ -29,6 +29,7 @@ const DEFAULTS = {
   customJava: '',
   closeOnLaunch: true,
   skinEnabled: true,
+  optimize: true,
   discordRpc: true,
   profiles: null,
   activeProfile: 'default',
@@ -182,6 +183,28 @@ async function ensureJava(major) {
   if (!bin) throw new Error('Java скачана, но исполняемый файл не найден');
   if (process.platform !== 'win32') fs.chmodSync(bin, 0o755);
   return bin;
+}
+
+/* ---------- производительность ---------- */
+// Оптимизированные параметры JVM: меньше фризов от сборщика мусора
+const FAST_JVM = [
+  '-XX:+UseG1GC', '-XX:+ParallelRefProcEnabled', '-XX:MaxGCPauseMillis=50',
+  '-XX:+UnlockExperimentalVMOptions', '-XX:+DisableExplicitGC',
+  '-XX:G1NewSizePercent=30', '-XX:G1MaxNewSizePercent=40', '-XX:G1HeapRegionSize=8M',
+  '-XX:G1ReservePercent=20', '-XX:G1HeapWastePercent=5', '-XX:G1MixedGCCountTarget=4',
+  '-XX:InitiatingHeapOccupancyPercent=15', '-XX:G1MixedGCLiveThresholdPercent=90',
+  '-XX:SurvivorRatio=32', '-XX:+PerfDisableSharedMem', '-XX:MaxTenuringThreshold=1'
+];
+
+// Просим Windows запускать Java на мощной (дискретной) видеокарте
+function preferHighPerformanceGpu(javaPath) {
+  if (process.platform !== 'win32' || !javaPath) return Promise.resolve();
+  const dir = path.dirname(javaPath);
+  const exes = ['javaw.exe', 'java.exe'].map((n) => path.join(dir, n)).filter((p) => fs.existsSync(p));
+  return Promise.all(exes.map((exe) => new Promise((res) => execFile('reg', [
+    'add', 'HKCU\\Software\\Microsoft\\DirectX\\UserGpuPreferences',
+    '/v', exe, '/t', 'REG_SZ', '/d', 'GpuPreference=2;', '/f'
+  ], { windowsHide: true }, () => res()))));
 }
 
 /* ---------- natives for old versions (fix MCLC duplicate-unlink bug) ---------- */
@@ -963,17 +986,24 @@ ipcMain.handle('game:launch', async () => {
     }
 
     const ram = Number(prof.ramMax) || Number(s.ramMax) || 4096;
+    const optimize = s.optimize !== false;
+    if (optimize) await preferHighPerformanceGpu(javaPath);
+    const userArgs = s.jvmArgs ? s.jvmArgs.split(/\s+/).filter(Boolean) : [];
+    // свои аргументы пользователя важнее — если он задал GC сам, наши не добавляем
+    const gcArgs = optimize && !userArgs.some((a) => /^-XX:\+Use\w+GC$/.test(a)) ? FAST_JVM : [];
+    const minRam = optimize ? Math.min(ram, Math.max(1024, Math.floor(ram / 2))) : Math.min(s.ramMin, ram);
+    send('log', `[sigma] RAM ${ram} МБ · оптимизация ${optimize ? 'вкл (G1GC, дискретная видеокарта)' : 'выкл'}`);
     const launcher = new Client();
     const opts = {
       authorization: Authenticator.getAuth(nick),
       root,
       version,
-      memory: { max: `${ram}M`, min: `${Math.min(s.ramMin, ram)}M` },
+      memory: { max: `${ram}M`, min: `${minRam}M` },
       javaPath,
       window: s.fullscreen
         ? { fullscreen: true }
         : { width: Number(s.width) || 1280, height: Number(s.height) || 720 },
-      customArgs: s.jvmArgs ? s.jvmArgs.split(/\s+/).filter(Boolean) : [],
+      customArgs: [...gcArgs, ...userArgs],
       overrides: { detached: false, maxSockets: 8, gameDirectory: gameDir, cwd: gameDir }
     };
 
