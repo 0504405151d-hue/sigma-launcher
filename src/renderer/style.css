@@ -731,3 +731,61 @@ body.idle .cube, #page-home:not(.active) .cube { animation-play-state: paused; }
 .backup:first-child { border-top: 0; }
 .backup .grow { flex: 1; min-width: 0; }
 .backup .m { color: var(--muted); font-size: 12px; }
+
+/* ---------- карта ---------- */
+#page-map { display: flex; flex-direction: column; gap: 12px; }
+.map-top { display: flex; align-items: center; gap: 10px; }
+.map-top h2 { font-size: 24px; font-weight: 800; margin-right: 6px; }
+.map-top .spacer { flex: 1; }
+.map-top .select { max-width: 280px; }
+.map-view {
+  position: relative; flex: 1; min-height: 360px; overflow: hidden; border-radius: 16px;
+  border: 1px solid var(--line); cursor: grab;
+  background: #0a0c10 repeating-conic-gradient(#0d1016 0 25%, #0a0c10 0 50%) 0 0 / 32px 32px;
+}
+.map-view.dragging { cursor: grabbing; }
+.map-layer { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.map-layer canvas { position: absolute; width: 512px; height: 512px; image-rendering: pixelated; }
+.map-pin { position: absolute; transform-origin: 0 0; pointer-events: none; }
+.map-pin div {
+  position: absolute; left: -14px; top: -34px; white-space: nowrap;
+  display: flex; align-items: center; gap: 6px; padding: 4px 9px 4px 5px; border-radius: 99px;
+  background: rgba(11,13,18,.88); border: 1px solid var(--line); font-size: 12px; font-weight: 600;
+}
+.map-pin div::after { content: ""; position: absolute; left: 10px; bottom: -6px; border: 6px solid transparent; border-bottom: 0; border-top-color: rgba(11,13,18,.88); }
+.map-pin i { width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 11px; }
+.map-pin.player i { background: var(--accent); }
+.map-pin.spawn i { background: #fbbf24; }
+.map-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--muted); text-align: center; padding: 20px; }
+.map-empty-icon { font-size: 44px; }
+.map-empty b { color: var(--text); font-size: 16px; }
+.map-hud { position: absolute; left: 12px; bottom: 12px; display: flex; gap: 8px; pointer-events: none; }
+.map-hud span { padding: 5px 10px; border-radius: 8px; background: rgba(11,13,18,.85); font-size: 12px; font-family: var(--mono); }
+.map-hud span:empty { display: none; }
+.map-zoom { position: absolute; right: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
+.map-zoom button { width: 34px; height: 34px; border-radius: 9px; background: rgba(11,13,18,.85); border: 1px solid var(--line); font-size: 18px; }
+.map-zoom button:hover { border-color: var(--accent); }
+.map-empty[hidden] { display: none; }
+
+/* ---------- мини-игра ---------- */
+.game-open { margin-top: 10px; font-size: 12.5px; color: var(--accent); padding: 0; }
+.game-open:hover { text-decoration: underline; }
+.game-open[hidden] { display: none; }
+.minigame { margin-top: 12px; border-radius: 14px; overflow: hidden; border: 1px solid var(--line); background: #8ec5ff; }
+.minigame[hidden] { display: none; }
+.minigame canvas { display: block; width: 100%; height: auto; image-rendering: pixelated; cursor: pointer; }
+.game-hint { display: flex; gap: 16px; align-items: center; padding: 7px 12px; font-size: 12px; background: var(--panel); color: var(--muted); }
+.game-hint #gameScore { margin-left: auto; color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; }
+.game-hint button { color: var(--muted); }
+.game-hint button:hover { color: var(--text); }
+
+/* ---------- фон главной из скриншота ---------- */
+.hero.photo { background-size: cover; background-position: center; border-color: var(--line); }
+.hero.photo::before {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(90deg, rgba(8,10,14,.92) 0%, rgba(8,10,14,.65) 40%, rgba(8,10,14,.05) 75%);
+}
+.hero.photo .hero-grid, .hero.photo .hero-glow, .hero.photo .cube-wrap { display: none; }
+.hero-credit { position: absolute; right: 14px; bottom: 12px; z-index: 1; font-size: 11px; color: rgba(255,255,255,.75); background: rgba(8,10,14,.55); padding: 4px 9px; border-radius: 8px; }
+.hero-credit[hidden] { display: none; }
+#page-home > * { flex-shrink: 0; }

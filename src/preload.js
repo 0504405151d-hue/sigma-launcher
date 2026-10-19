@@ -50,6 +50,12 @@ contextBridge.exposeInMainWorld('api', {
   copyWorld: (p) => ipcRenderer.invoke('worlds:copy', p),
   openWorld: (p) => ipcRenderer.invoke('worlds:open', p),
 
+  renderMap: (p) => ipcRenderer.invoke('map:render', p),
+  cancelMap: () => ipcRenderer.invoke('map:cancel'),
+  saveMap: (dataUrl, name) => ipcRenderer.invoke('map:save', dataUrl, name),
+  onMapStart: (cb) => ipcRenderer.on('map-start', (_e, d) => cb(d)),
+  onMapRegion: (cb) => ipcRenderer.on('map-region', (_e, d) => cb(d)),
+
   pingJava: (addr) => ipcRenderer.invoke('jservers:ping', addr),
 
   shots: () => ipcRenderer.invoke('shots:list'),

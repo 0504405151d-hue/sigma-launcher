@@ -15,7 +15,8 @@
     "@xhayper/discord-rpc": "^1.5.1",
     "adm-zip": "^0.5.18",
     "extract-zip": "^2.0.1",
-    "minecraft-launcher-core": "^3.18.2"
+    "minecraft-launcher-core": "^3.18.2",
+    "prismarine-nbt": "^2.8.0"
   },
   "devDependencies": {
     "electron": "^44.9.0",

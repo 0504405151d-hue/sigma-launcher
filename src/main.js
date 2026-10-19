@@ -770,6 +770,55 @@ ipcMain.handle('worlds:open', (_e, p) => {
   if (list.some((x) => path.resolve(p).startsWith(path.resolve(x.dir) + path.sep))) shell.openPath(p);
 });
 
+/* ---------- карта мира ---------- */
+const worldmap = require('./worldmap');
+let mapJob = 0;
+ipcMain.handle('map:render', async (_e, worldPath) => {
+  const { list } = worldSources();
+  if (!list.some((x) => path.resolve(worldPath).startsWith(path.resolve(x.dir) + path.sep))) throw new Error('Неизвестный мир');
+  const job = ++mapJob;
+  const level = await worldmap.readLevel(worldPath);
+  const dir = path.join(worldPath, 'region');
+  let files = [];
+  try { files = fs.readdirSync(dir).filter((f) => /^r\.-?\d+\.-?\d+\.mca$/.test(f)); } catch { /* пусто */ }
+  const center = level.player || level.spawn || { x: 0, z: 0 };
+  const regions = files.map((f) => {
+    const [, rx, rz] = f.match(/^r\.(-?\d+)\.(-?\d+)\.mca$/);
+    return { f, rx: +rx, rz: +rz, d: Math.hypot(+rx * 512 + 256 - center.x, +rz * 512 + 256 - center.z) };
+  }).sort((a, b) => a.d - b.d).slice(0, 400);
+
+  send('map-start', { job, total: regions.length, ...level });
+  let drawn = 0;
+  let legacy = false;
+  const yieldNow = () => new Promise((r) => setImmediate(r));
+  for (let i = 0; i < regions.length; i++) {
+    if (job !== mapJob) return { cancelled: true };
+    const r = regions[i];
+    let res = null;
+    try { res = await worldmap.renderRegion(path.join(dir, r.f), yieldNow); } catch { /* битый регион */ }
+    if (res && res.legacy) legacy = true;
+    if (res && res.rgba) {
+      drawn++;
+      send('map-region', { job, rx: r.rx, rz: r.rz, rgba: res.rgba, done: i + 1, total: regions.length });
+    } else {
+      send('map-region', { job, done: i + 1, total: regions.length });
+    }
+    await yieldNow();
+  }
+  return { job, drawn, total: regions.length, legacy };
+});
+ipcMain.handle('map:cancel', () => { mapJob++; });
+ipcMain.handle('map:save', async (_e, dataUrl, name) => {
+  const r = await dialog.showSaveDialog(win, {
+    defaultPath: path.join(app.getPath('pictures'), `${String(name || 'карта').replace(/[\\/:*?"<>|]/g, '_')}.png`),
+    filters: [{ name: 'PNG', extensions: ['png'] }]
+  });
+  if (r.canceled || !r.filePath) return false;
+  fs.writeFileSync(r.filePath, Buffer.from(dataUrl.split(',')[1], 'base64'));
+  shell.showItemInFolder(r.filePath);
+  return true;
+});
+
 /* ---------- серверы Java ---------- */
 const slp = require('./slp');
 function parseAddr(addr) {

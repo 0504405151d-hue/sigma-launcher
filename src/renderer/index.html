@@ -47,6 +47,9 @@
       <button class="nav" data-page="worlds" title="Миры">
         <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span>Миры</span>
       </button>
+      <button class="nav" data-page="map" title="Карта мира">
+        <svg viewBox="0 0 24 24"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg><span>Карта</span>
+      </button>
       <button class="nav" data-page="shots" title="Скриншоты">
         <svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-8 8"/></svg><span>Скрины</span>
       </button>
@@ -104,6 +107,11 @@
         <div class="progress-wrap" id="progressWrap">
           <div class="progress-text"><span id="statusText">Готово к игре</span><span id="statusPct"></span></div>
           <div class="progress"><div id="progressBar"></div></div>
+          <button class="game-open" id="gameOpen" hidden>🎮 Поиграть, пока грузится</button>
+        </div>
+        <div class="minigame" id="minigame" hidden>
+          <canvas id="gameCanvas" width="900" height="170"></canvas>
+          <div class="game-hint"><span>Пробел или клик — прыжок</span><span id="gameScore">0</span><span id="gameBest"></span><button id="gameClose" title="Закрыть">✕</button></div>
         </div>
 
         <div class="quick">
@@ -224,6 +232,34 @@
             <input id="srvName" placeholder="Название" style="width:170px" spellcheck="false" />
             <input id="srvAddr" placeholder="адрес, например mc.server.net или 1.2.3.4:25565" style="flex:1" spellcheck="false" />
             <button class="btn primary" id="srvAdd">Добавить</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- MAP -->
+      <section class="page" id="page-map">
+        <div class="map-top">
+          <h2>Карта</h2>
+          <select id="mapWorld" class="select"></select>
+          <button class="btn primary" id="mapBuild">Показать карту</button>
+          <div class="spacer"></div>
+          <button class="btn" id="mapCenter" disabled>К игроку</button>
+          <button class="btn" id="mapSave" disabled>Сохранить картинку</button>
+        </div>
+        <div class="map-view" id="mapView">
+          <div class="map-layer" id="mapLayer"></div>
+          <div class="map-empty" id="mapEmpty">
+            <div class="map-empty-icon">🗺</div>
+            <b>Карта твоего мира сверху</b>
+            <span>Выбери мир и нажми «Показать карту». Двигай мышкой, приближай колёсиком.</span>
+          </div>
+          <div class="map-hud">
+            <span id="mapCoords">X: — Z: —</span>
+            <span id="mapProgress"></span>
+          </div>
+          <div class="map-zoom">
+            <button id="mapZoomIn" title="Приблизить">+</button>
+            <button id="mapZoomOut" title="Отдалить">−</button>
           </div>
         </div>
       </section>
@@ -464,6 +500,13 @@
             </div>
             <div class="row">
               <div>
+                <div class="row-title">Фон главной — мой последний скриншот</div>
+                <div class="row-sub">Нажми F2 в игре в красивом месте — и он появится на главном экране</div>
+              </div>
+              <label class="switch"><input type="checkbox" id="heroShot" /><span></span></label>
+            </div>
+            <div class="row">
+              <div>
                 <div class="row-title">Статус в Discord</div>
                 <div class="row-sub" id="discordNote">Друзья увидят, во что ты играешь. Нужен запущенный Discord.</div>
               </div>
@@ -563,5 +606,7 @@
   <script src="features.js"></script>
   <script src="worlds.js"></script>
   <script src="extras.js"></script>
+  <script src="map.js"></script>
+  <script src="minigame.js"></script>
 </body>
 </html>

@@ -136,6 +136,36 @@
   el('shotsRefresh').onclick = renderShots;
   onPage('shots', renderShots);
 
+  /* ---------- фон главной ---------- */
+  async function heroBackground() {
+    const s = await api.getSettings();
+    const hero = document.querySelector('.hero');
+    let credit = hero.querySelector('.hero-credit');
+    if (!credit) {
+      credit = document.createElement('div');
+      credit.className = 'hero-credit';
+      hero.appendChild(credit);
+    }
+    const list = s.heroShot === false ? [] : await api.shots();
+    if (!list.length) {
+      hero.classList.remove('photo');
+      hero.style.backgroundImage = '';
+      credit.hidden = true;
+      return;
+    }
+    const sh = list[0];
+    hero.style.backgroundImage = `url("${sh.url}")`;
+    hero.classList.add('photo');
+    credit.textContent = `📸 ${fmtDate(sh.time)} · ${sh.profile}`;
+    credit.hidden = false;
+  }
+  el('heroShot').onchange = async (e) => { await api.setSettings({ heroShot: e.target.checked }); heroBackground(); };
+  api.getSettings().then((s) => { el('heroShot').checked = s.heroShot !== false; });
+  heroBackground();
+  // после игры — вдруг появились новые скриншоты
+  api.onStatus((d) => { if (d.finished) heroBackground(); });
+  onPage('home', heroBackground);
+
   /* ---------- бэкапы миров ---------- */
   async function renderBackups() {
     const list = await api.backups();
