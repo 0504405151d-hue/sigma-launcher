@@ -667,3 +667,12 @@ input[type=range]::-webkit-slider-thumb {
 
 /* куб на главной не крутится, когда его не видно */
 body.idle .cube, #page-home:not(.active) .cube { animation-play-state: paused; }
+
+/* ---------- затемнение при обновлении ---------- */
+#updOverlay { position: fixed; inset: 40px 0 0 0; z-index: 100; display: grid; place-items: center; background: rgba(5,7,10,.78); backdrop-filter: blur(4px); }
+#updOverlay[hidden] { display: none; }
+.upd-box { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 28px 40px; border-radius: 18px; background: var(--panel); border: 1px solid var(--line); }
+.upd-box b { font-size: 18px; }
+.upd-box span { font-size: 13px; color: var(--muted); }
+.upd-spin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--panel2); border-top-color: #fbbf24; animation: spin2 .8s linear infinite; margin-bottom: 6px; }
+@keyframes spin2 { to { transform: rotate(360deg); } }

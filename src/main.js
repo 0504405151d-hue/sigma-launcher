@@ -398,11 +398,23 @@ ipcMain.handle('bedrock:ping', (_e, host, port) => new Promise((resolve) => {
 function startRestartSplash(tmp, exe, version) {
   const q = (v) => `'${String(v).replace(/'/g, "''")}'`;
   const ps = `
-Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-[System.Windows.Forms.Application]::EnableVisualStyles()
 $tmp = ${q(tmp)}
 $exe = ${q(exe)}
 $ver = ${q(version)}
+$script:state = 0
+
+# запасной путь без окна: главное — заменить файл и запустить новую версию
+function Finish-Without-UI {
+  for ($i = 0; $i -lt 90 -and $script:state -eq 0; $i++) {
+    try { Move-Item -LiteralPath $tmp -Destination $exe -Force -ErrorAction Stop; $script:state = 1 }
+    catch { Start-Sleep -Seconds 1 }
+  }
+  if ($script:state -eq 1) { Start-Process -FilePath $exe }
+}
+
+try {
+Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+[System.Windows.Forms.Application]::EnableVisualStyles()
 
 $bg   = [System.Drawing.Color]::FromArgb(17, 20, 27)
 $green = [System.Drawing.Color]::FromArgb(74, 222, 128)
@@ -444,7 +456,6 @@ $bar.Size = New-Object System.Drawing.Size(352, 8)
 $bar.Location = New-Object System.Drawing.Point(24, 126)
 $form.Controls.Add($bar)
 
-$script:state = 0
 $script:start = Get-Date
 $script:launched = $null
 
@@ -476,13 +487,16 @@ $timer.Add_Tick({
 })
 $form.Add_Shown({ $form.Activate(); $timer.Start() })
 [System.Windows.Forms.Application]::Run($form)
+} catch { }
+# если окно не смогло показаться или закрылось раньше времени — доделываем без него
+if ($script:state -eq 0) { Finish-Without-UI }
 Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
 `;
   const file = path.join(os.tmpdir(), `sigma-update-${Date.now()}.ps1`);
   // BOM — чтобы Windows PowerShell правильно прочитал русский текст
   fs.writeFileSync(file, '\ufeff' + ps.replace(/\n/g, '\r\n'), 'utf8');
   const child = require('child_process').spawn('powershell.exe',
-    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', file],
+    ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', file],
     { detached: true, stdio: 'ignore', windowsHide: true });
   // запасной вариант без окна, если PowerShell недоступен
   child.on('error', () => {

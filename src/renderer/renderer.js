@@ -250,6 +250,19 @@ function showUpdate() {
   tag.textContent = `Доступно обновление v${update.version}${update.notes ? ' — ' + update.notes : ''}`;
 }
 
+function showUpdateOverlay(text) {
+  let o = document.getElementById('updOverlay');
+  if (!o) {
+    o = document.createElement('div');
+    o.id = 'updOverlay';
+    o.innerHTML = '<div class="upd-box"><div class="upd-spin"></div><b></b><span></span></div>';
+    document.body.appendChild(o);
+  }
+  o.querySelector('b').textContent = `Обновление до v${update.version}`;
+  o.querySelector('span').textContent = text;
+  o.hidden = false;
+}
+
 async function installUpdate() {
   setBusy(true);
   $('#playBtn').querySelector('.play-label').textContent = 'ОБНОВЛЕНИЕ...';
@@ -280,7 +293,13 @@ $('#playBtn').onclick = async () => {
   }
 };
 
-api.onStatus(setStatus);
+api.onStatus((d) => {
+  setStatus(d);
+  const o = document.getElementById('updOverlay');
+  if (update && d.text && /обновлени|Перезапуск/i.test(d.text)) {
+    showUpdateOverlay(d.text.startsWith('Перезапуск') ? 'Перезапускаю лаунчер...' : `${d.text} ${d.percent ? Math.floor(d.percent) + '%' : ''}`);
+  } else if (o && !update) o.hidden = true;
+});
 
 /* ---------- console ---------- */
 const con = $('#console');
