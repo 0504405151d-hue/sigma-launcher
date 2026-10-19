@@ -69,6 +69,16 @@ contextBridge.exposeInMainWorld('api', {
   deleteBackup: (f) => ipcRenderer.invoke('backups:delete', f),
   openBackups: () => ipcRenderer.invoke('backups:open'),
 
+  searchPacks: (q) => ipcRenderer.invoke('packs:search', q),
+  installPack: (id) => ipcRenderer.invoke('packs:install', id),
+  importPack: () => ipcRenderer.invoke('packs:import'),
+  exportProfile: (id) => ipcRenderer.invoke('profiles:export', id),
+  modUpdates: () => ipcRenderer.invoke('mr:updates'),
+  updateMods: (list) => ipcRenderer.invoke('mr:updateAll', list),
+  crashAction: (a, report) => ipcRenderer.invoke('crash:action', a, report),
+  onPackProgress: (cb) => ipcRenderer.on('pack-progress', (_e, d) => cb(d)),
+  onCrash: (cb) => ipcRenderer.on('crash', (_e, d) => cb(d)),
+
   stats: () => ipcRenderer.invoke('stats:get'),
   resetStats: () => ipcRenderer.invoke('stats:reset'),
   discordAvailable: () => ipcRenderer.invoke('discord:available'),

@@ -107,11 +107,6 @@
         <div class="progress-wrap" id="progressWrap">
           <div class="progress-text"><span id="statusText">Готово к игре</span><span id="statusPct"></span></div>
           <div class="progress"><div id="progressBar"></div></div>
-          <button class="game-open" id="gameOpen" hidden>🎮 Поиграть, пока грузится</button>
-        </div>
-        <div class="minigame" id="minigame" hidden>
-          <canvas id="gameCanvas" width="900" height="170"></canvas>
-          <div class="game-hint"><span>Пробел или клик — прыжок</span><span id="gameScore">0</span><span id="gameBest"></span><button id="gameClose" title="Закрыть">✕</button></div>
         </div>
 
         <div class="quick">
@@ -158,7 +153,10 @@
       <section class="page" id="page-profiles">
         <div class="page-head">
           <h2>Сборки</h2>
-          <button class="btn primary" id="profNew">+ Новая сборка</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn" id="profImport">Импорт сборки</button>
+            <button class="btn primary" id="profNew">+ Новая сборка</button>
+          </div>
         </div>
         <p class="muted page-sub">У каждой сборки своя версия, свои моды, миры и настройки. Переключайся в один клик.</p>
         <h3 class="sec-title">Готовые сборки — в один клик</h3>
@@ -202,6 +200,7 @@
           <button class="filter active" data-mtype="mod">Моды</button>
           <button class="filter" data-mtype="shader">Шейдеры</button>
           <button class="filter" data-mtype="resourcepack">Ресурспаки</button>
+          <button class="filter" data-mtype="modpack">Модпаки</button>
           <button class="filter" data-mtype="installed">Установленные</button>
           <div class="spacer"></div>
           <select id="modSort" class="select">
@@ -500,6 +499,13 @@
             </div>
             <div class="row">
               <div>
+                <div class="row-title">Автобэкап мира</div>
+                <div class="row-sub">Раз в день перед запуском сохраняет копию мира, в котором ты играл последним (хранятся 3 последние)</div>
+              </div>
+              <label class="switch"><input type="checkbox" id="autoBackup" /><span></span></label>
+            </div>
+            <div class="row">
+              <div>
                 <div class="row-title">Фон главной — мой последний скриншот</div>
                 <div class="row-sub">Нажми F2 в игре в красивом месте — и он появится на главном экране</div>
               </div>
@@ -607,6 +613,5 @@
   <script src="worlds.js"></script>
   <script src="extras.js"></script>
   <script src="map.js"></script>
-  <script src="minigame.js"></script>
 </body>
 </html>

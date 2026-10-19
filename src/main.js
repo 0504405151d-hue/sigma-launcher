@@ -1110,6 +1110,161 @@ ipcMain.handle('stats:get', () => {
 ipcMain.handle('stats:reset', () => { stats.reset(); return true; });
 ipcMain.handle('discord:available', () => discord.enabled());
 
+/* ---------- автобэкап ---------- */
+function dirSize(dir, limit) {
+  let total = 0;
+  const stack = [dir];
+  while (stack.length) {
+    const d = stack.pop();
+    let list = [];
+    try { list = fs.readdirSync(d, { withFileTypes: true }); } catch { continue; }
+    for (const e of list) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) stack.push(p);
+      else { try { total += fs.statSync(p).size; } catch { /* пропал */ } }
+      if (total > limit) return total;
+    }
+  }
+  return total;
+}
+async function autoBackup(gameDir) {
+  const saves = path.join(gameDir, 'saves');
+  let worlds = [];
+  try {
+    worlds = fs.readdirSync(saves, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && fs.existsSync(path.join(saves, e.name, 'level.dat')))
+      .map((e) => ({ name: e.name, dir: path.join(saves, e.name), t: fs.statSync(path.join(saves, e.name, 'level.dat')).mtimeMs }))
+      .sort((a, b) => b.t - a.t);
+  } catch { return; }
+  const w = worlds[0];
+  if (!w) return;
+  fs.mkdirSync(BACKUPS, { recursive: true });
+  const safe = w.name.replace(/[\\/:*?"<>|]/g, '_');
+  const mine = fs.readdirSync(BACKUPS).filter((f) => f.startsWith(`${safe} авто `)).sort();
+  const last = mine.length ? fs.statSync(path.join(BACKUPS, mine[mine.length - 1])).mtimeMs : 0;
+  if (Date.now() - last < 24 * 3600 * 1000) return; // раз в сутки
+  if (dirSize(w.dir, 1024 * 1024 * 1024) > 1024 * 1024 * 1024) { send('log', `[backup] Мир «${w.name}» больше 1 ГБ — автобэкап пропущен`); return; }
+  send('status', { text: `Автобэкап мира «${w.name}»...`, percent: 0 });
+  const stamp = new Date().toISOString().slice(0, 16).replace('T', '_').replace(':', '-');
+  const zip = new AdmZip();
+  zip.addLocalFolder(w.dir, w.name, (f) => !/session\.lock$/.test(f));
+  await new Promise((res, rej) => zip.writeZip(path.join(BACKUPS, `${safe} авто ${stamp}.zip`), (err) => (err ? rej(err) : res())));
+  // храним 3 последних автобэкапа каждого мира
+  for (const old of mine.slice(0, Math.max(0, mine.length - 2))) fs.rmSync(path.join(BACKUPS, old), { force: true });
+  send('log', `[backup] Автобэкап «${w.name}» сохранён`);
+}
+
+/* ---------- модпаки, обмен сборками, обновление модов ---------- */
+const crash = require('./crash');
+function newProfile(data) {
+  const s = ensureProfiles(readRaw());
+  const id = 'p' + Date.now().toString(36);
+  const p = { id, content: {}, created: Date.now(), ramMax: null, color: '#60a5fa', ...data };
+  s.profiles.push(p);
+  s.activeProfile = id;
+  writeRaw(s);
+  return { s, p, dir: profileDir(s, p) };
+}
+async function installPackFile(file, icon) {
+  const progress = (text, f) => send('pack-progress', { text, percent: Math.round(f * 100) });
+  const tmpDir = path.join(DATA, 'profiles', 'tmp-' + Date.now().toString(36));
+  try {
+    const r = await modrinth.installMrpack({ file, gameDir: tmpDir, log: (l) => send('log', l), progress });
+    const { p, dir } = newProfile({
+      name: r.name.slice(0, 32), version: r.mc, loader: r.loader, fabricLoader: r.loaderVersion || null,
+      content: r.content, packIcon: icon || null, color: '#a78bfa'
+    });
+    fs.mkdirSync(path.dirname(dir), { recursive: true });
+    fs.renameSync(tmpDir, dir);
+    return { id: p.id, name: p.name, mc: r.mc, mods: Object.keys(r.content).length };
+  } catch (e) {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    throw e;
+  }
+}
+
+ipcMain.handle('packs:search', (_e, q) => modrinth.searchPacks(q || {}));
+ipcMain.handle('packs:install', async (_e, project) => {
+  if (mrBusy) throw new Error('Подожди, идёт другая установка');
+  mrBusy = true;
+  const tmp = path.join(os.tmpdir(), `sigma-pack-${Date.now()}.mrpack`);
+  try {
+    send('pack-progress', { text: 'Скачиваю модпак...', percent: 0 });
+    const { icon } = await modrinth.downloadPack(project, tmp);
+    return await installPackFile(tmp, icon);
+  } finally {
+    fs.rmSync(tmp, { force: true });
+    mrBusy = false;
+  }
+});
+ipcMain.handle('packs:import', async () => {
+  if (mrBusy) throw new Error('Подожди, идёт другая установка');
+  const r = await dialog.showOpenDialog(win, { properties: ['openFile'], filters: [{ name: 'Сборка Minecraft', extensions: ['mrpack', 'zip'] }] });
+  if (r.canceled || !r.filePaths[0]) return null;
+  mrBusy = true;
+  try { return await installPackFile(r.filePaths[0]); } finally { mrBusy = false; }
+});
+
+ipcMain.handle('profiles:export', async (_e, id) => {
+  const s = loadSettings();
+  const p = s.profiles.find((x) => x.id === id);
+  if (!p) throw new Error('Сборка не найдена');
+  const mc = p.version || (await getManifest()).latest.release;
+  let loaderVersion = p.fabricLoader || null;
+  if (p.loader === 'fabric' && !loaderVersion) {
+    const vid = await modrinth.ensureFabric(s.gameDir, mc);
+    loaderVersion = (vid.match(/^fabric-loader-(.+)-[^-]+$/) || [])[1] || null;
+    if (!loaderVersion) loaderVersion = vid.replace(/^fabric-loader-/, '').replace(new RegExp(`-${mc.replace(/\./g, '\\.')}$`), '');
+  }
+  const out = await dialog.showSaveDialog(win, {
+    defaultPath: path.join(app.getPath('downloads'), `${p.name.replace(/[\\/:*?"<>|]/g, '_')}.mrpack`),
+    filters: [{ name: 'Сборка Minecraft', extensions: ['mrpack'] }]
+  });
+  if (out.canceled || !out.filePath) return null;
+  const r = await modrinth.exportMrpack({ name: p.name, mc, loaderVersion, gameDir: profileDir(s, p), content: p.content || {}, out: out.filePath });
+  shell.showItemInFolder(out.filePath);
+  return { ...r, file: out.filePath };
+});
+
+ipcMain.handle('mr:updates', async () => {
+  const s = loadSettings();
+  const mc = s.version || (await getManifest()).latest.release;
+  return modrinth.checkUpdates({ mc, gameDir: s.profile.dir, content: s.profile.content || {} });
+});
+ipcMain.handle('mr:updateAll', async (_e, list) => {
+  if (gameRunning) throw new Error('Закрой игру перед обновлением модов');
+  if (mrBusy) throw new Error('Подожди, идёт другая установка');
+  mrBusy = true;
+  try {
+    const s = loadSettings();
+    const content = { ...(s.profile.content || {}) };
+    let done = 0;
+    for (const upd of list) {
+      send('pack-progress', { text: `Обновляю ${upd.title} (${done + 1}/${list.length})`, percent: Math.round((done / list.length) * 100) });
+      try { await modrinth.applyUpdate({ gameDir: s.profile.dir, content, upd }); done++; } catch (e) { send('log', `[mods] ${upd.title}: ${e.message}`); }
+    }
+    updateProfile(s.profile.id, (prof) => { prof.content = content; });
+    return done;
+  } finally { mrBusy = false; }
+});
+
+// действия из окна «Игра вылетела»
+ipcMain.handle('crash:action', (_e, action, report) => {
+  const s = loadSettings();
+  if (action === 'moreRam') {
+    const total = Math.floor(os.totalmem() / 1048576);
+    const cur = Number(s.profile.ramMax) || Number(s.ramMax) || 4096;
+    const next = Math.min(Math.floor((total * 0.75) / 512) * 512, cur + 2048);
+    if (s.profile.ramMax) updateProfile(s.profile.id, (p) => { p.ramMax = next; });
+    else saveSettings({ ramMax: next });
+    return `Теперь игре выделено ${next} МБ`;
+  }
+  if (action === 'resetJava') { saveSettings({ customJava: '' }); return 'Своя Java сброшена — лаунчер скачает нужную сам'; }
+  if (action === 'openReport' && report && fs.existsSync(report)) { shell.openPath(report); return null; }
+  if (action === 'drivers') { shell.openExternal('https://www.google.com/search?q=%D0%BE%D0%B1%D0%BD%D0%BE%D0%B2%D0%B8%D1%82%D1%8C+%D0%B4%D1%80%D0%B0%D0%B9%D0%B2%D0%B5%D1%80+%D0%B2%D0%B8%D0%B4%D0%B5%D0%BE%D0%BA%D0%B0%D1%80%D1%82%D1%8B'); return null; }
+  return null;
+});
+
 /* ---------- запуск игры ---------- */
 ipcMain.handle('game:launch', async (_e, extra = {}) => {
   if (gameRunning) throw new Error('Игра уже запущена');
@@ -1144,7 +1299,11 @@ ipcMain.handle('game:launch', async (_e, extra = {}) => {
     const version = { number: entry.id, type: entry.type };
     if (prof.loader === 'fabric') {
       send('status', { text: 'Готовлю Fabric...', percent: 0 });
-      version.custom = await modrinth.ensureFabric(root, entry.id, (l) => send('log', l));
+      version.custom = await modrinth.ensureFabric(root, entry.id, (l) => send('log', l), prof.fabricLoader);
+    }
+
+    if (s.autoBackup !== false) {
+      try { await autoBackup(gameDir); } catch (e) { send('log', `[backup] Не получилось: ${e.message}`); }
     }
 
     const ram = Number(prof.ramMax) || Number(s.ramMax) || 4096;
@@ -1176,11 +1335,14 @@ ipcMain.handle('game:launch', async (_e, extra = {}) => {
     }
 
     let started = 0;
+    const tail = [];
+    const launchAt = Date.now();
     const session = { version: entry.id, loader: prof.loader, profileId: prof.id, profileName: prof.name };
 
-    launcher.on('debug', (l) => send('log', `[launcher] ${l}`));
+    launcher.on('debug', (l) => { send('log', `[launcher] ${l}`); tail.push(String(l)); if (tail.length > 800) tail.shift(); });
     launcher.on('data', (l) => {
       send('log', String(l).trimEnd());
+      for (const line of String(l).split('\n')) { tail.push(line); if (tail.length > 800) tail.shift(); }
       if (!started) {
         started = Date.now();
         stats.launched();
@@ -1208,6 +1370,12 @@ ipcMain.handle('game:launch', async (_e, extra = {}) => {
       if (win.isDestroyed()) return;
       win.show();
       send('status', { text: code === 0 ? 'Готово к игре' : `Игра закрылась с кодом ${code}`, percent: 0, playing: false, finished: true, code });
+      // обычный выход — 0; закрытие крестиком на Windows иногда даёт 1 без ошибок в логе
+      if (code !== 0 && code !== null) {
+        const info = crash.analyze({ log: tail, gameDir, started: launchAt, code, ram });
+        const quietExit = code === 1 && info.title === 'Игра вылетела' && !info.report;
+        if (!quietExit) send('crash', info);
+      }
     });
 
     const items = Object.values(prof.content || {});

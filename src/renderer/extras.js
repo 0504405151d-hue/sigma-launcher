@@ -159,6 +159,8 @@
     credit.textContent = `📸 ${fmtDate(sh.time)} · ${sh.profile}`;
     credit.hidden = false;
   }
+  el('autoBackup').onchange = (e) => api.setSettings({ autoBackup: e.target.checked });
+  api.getSettings().then((s) => { el('autoBackup').checked = s.autoBackup !== false; });
   el('heroShot').onchange = async (e) => { await api.setSettings({ heroShot: e.target.checked }); heroBackground(); };
   api.getSettings().then((s) => { el('heroShot').checked = s.heroShot !== false; });
   heroBackground();
@@ -179,7 +181,7 @@
       const row = document.createElement('div');
       row.className = 'backup';
       row.innerHTML = '<div class="grow"><div></div><div class="m"></div></div><button class="btn">Восстановить</button><button class="btn ghost" title="Удалить">✕</button>';
-      row.querySelector('.grow div').textContent = b.world;
+      row.querySelector('.grow div').textContent = b.world.replace(/ авто$/, ' · автобэкап');
       row.querySelector('.m').textContent = `${fmtDate(b.time)} · ${fmtSize(b.size)}`;
       const [restore, del] = row.querySelectorAll('.btn');
       restore.onclick = async () => {

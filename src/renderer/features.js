@@ -57,6 +57,7 @@
         <div class="prof-btns">
           <button class="btn grow ${p.active ? 'on' : 'primary'}" data-a="select">${p.active ? 'Активна' : 'Выбрать'}</button>
           <button class="btn" data-a="edit" title="Изменить">✎</button>
+          <button class="btn" data-a="share" title="Поделиться с другом">📤</button>
           <button class="btn" data-a="open" title="Открыть папку">📁</button>
           ${p.id === 'default' ? '' : '<button class="btn ghost" data-a="del" title="Удалить">🗑</button>'}
         </div>`;
@@ -70,6 +71,12 @@
       };
       card.querySelector('[data-a=edit]').onclick = () => openModal(p);
       card.querySelector('[data-a=open]').onclick = () => api.openProfile(p.id);
+      card.querySelector('[data-a=share]').onclick = async () => {
+        try {
+          const r = await withProgress(`Упаковываю «${p.name}»`, () => api.exportProfile(p.id));
+          if (r) toast('Файл сборки готов — отправь его другу. Он откроет его кнопкой «Импорт сборки»', true);
+        } catch (e) { toast(errText(e)); }
+      };
       const del = card.querySelector('[data-a=del]');
       if (del) del.onclick = async () => {
         if (!confirm(`Удалить сборку «${p.name}» вместе с её модами и мирами?`)) return;
@@ -86,6 +93,79 @@
     grid.appendChild(add);
   }
   el('profNew').onclick = () => openModal(null);
+  el('profImport').onclick = async () => {
+    try {
+      const r = await withProgress('Импорт сборки', () => api.importPack());
+      if (!r) return;
+      await reloadSettings();
+      renderProfiles();
+      toast(`Сборка «${r.name}» добавлена и выбрана (${r.mc}) — жми ИГРАТЬ`, true);
+    } catch (e) { toast(errText(e)); }
+  };
+
+  /* ---------- окно прогресса для долгих операций ---------- */
+  async function withProgress(title, fn) {
+    let o = document.getElementById('packOverlay');
+    if (!o) {
+      o = document.createElement('div');
+      o.id = 'packOverlay';
+      o.innerHTML = '<div class="upd-box"><div class="upd-spin"></div><b></b><span></span><div class="progress"><div></div></div></div>';
+      document.body.appendChild(o);
+    }
+    o.querySelector('b').textContent = title;
+    o.querySelector('span').textContent = 'Подготовка...';
+    o.querySelector('.progress div').style.width = '0';
+    o.hidden = false;
+    try { return await fn(); } finally { o.hidden = true; }
+  }
+  api.onPackProgress((d) => {
+    const o = document.getElementById('packOverlay');
+    if (!o) return;
+    o.querySelector('span').textContent = d.text;
+    o.querySelector('.progress div').style.width = `${d.percent || 0}%`;
+  });
+
+  /* ---------- окно «Игра вылетела» ---------- */
+  const ACTION_LABEL = {
+    moreRam: 'Дать больше памяти', resetJava: 'Сбросить Java', updateMods: 'Проверить обновления модов',
+    openMods: 'Открыть моды', drivers: 'Как обновить драйвер', openReport: 'Открыть отчёт о краше', console: 'Открыть консоль'
+  };
+  api.onCrash((c) => {
+    let m = document.getElementById('crashModal');
+    if (!m) {
+      m = document.createElement('div');
+      m.id = 'crashModal';
+      m.className = 'modal';
+      m.innerHTML = '<div class="modal-box crash"><div class="crash-icon">💥</div><h2></h2><p></p><div class="crash-actions"></div><div class="modal-actions"><button class="btn ghost" data-close>Закрыть</button></div></div>';
+      document.body.appendChild(m);
+      m.querySelector('[data-close]').onclick = () => { m.hidden = true; };
+    }
+    m.querySelector('h2').textContent = c.title;
+    m.querySelector('p').textContent = c.text;
+    const box = m.querySelector('.crash-actions');
+    box.innerHTML = '';
+    const acts = [...c.actions];
+    if (c.report && !acts.includes('openReport')) acts.push('openReport');
+    acts.forEach((a, i) => {
+      const b = document.createElement('button');
+      b.className = `btn ${i === 0 ? 'primary' : ''}`;
+      b.textContent = ACTION_LABEL[a] || a;
+      b.onclick = async () => {
+        if (a === 'openMods' || a === 'updateMods') {
+          m.hidden = true;
+          go('mods');
+          document.querySelector('[data-mtype=installed]').click();
+          if (a === 'updateMods') setTimeout(() => document.querySelector('.upd-bar .btn')?.click(), 600);
+          return;
+        }
+        if (a === 'console') { m.hidden = true; go('console'); return; }
+        const msg = await api.crashAction(a, c.report);
+        if (msg) { toast(msg, true); await reloadSettings(); m.hidden = true; }
+      };
+      box.appendChild(b);
+    });
+    m.hidden = false;
+  });
 
   /* ---------- готовые сборки ---------- */
   document.querySelectorAll('.preset').forEach((card) => {
@@ -294,6 +374,79 @@
     return row;
   }
 
+  function packRow(h) {
+    const row = document.createElement('div');
+    row.className = 'mod';
+    row.innerHTML = `
+      <img class="mod-icon" alt="" />
+      <div class="mod-info">
+        <div class="mod-title"><span></span><small></small></div>
+        <div class="mod-desc"></div>
+        <div class="mod-dl"></div>
+      </div>
+      <button class="btn primary">Установить</button>`;
+    const img = row.querySelector('img');
+    if (h.icon) img.src = h.icon; else img.style.visibility = 'hidden';
+    row.querySelector('.mod-title span').textContent = h.title;
+    row.querySelector('.mod-title small').textContent = h.author ? `от ${h.author}` : '';
+    row.querySelector('.mod-desc').textContent = h.description;
+    const vers = h.versions.filter((v) => /^\d+\.\d+(\.\d+)?$/.test(v));
+    row.querySelector('.mod-dl').textContent = `⬇ ${fmtNum(h.downloads)} скачиваний${vers.length ? ' · до ' + vers[vers.length - 1] : ''}`;
+    const btn = row.querySelector('.btn');
+    btn.onclick = async () => {
+      if (btn.disabled) return;
+      btn.disabled = true;
+      btn.textContent = 'Ставлю...';
+      try {
+        const r = await withProgress(`Модпак «${h.title}»`, () => api.installPack(h.id));
+        await reloadSettings();
+        toast(`Готово! Создана сборка «${r.name}» (${r.mc}, модов: ${r.mods}) — жми ИГРАТЬ`, true);
+        btn.textContent = '✓ Установлен';
+      } catch (e) {
+        toast(errText(e));
+        btn.textContent = 'Установить';
+        btn.disabled = false;
+      }
+    };
+    return row;
+  }
+
+  function updatesBar() {
+    const bar = document.createElement('div');
+    bar.className = 'upd-bar';
+    bar.innerHTML = '<span>Проверь, не вышли ли новые версии модов</span><button class="btn">Проверить обновления</button>';
+    const btn = bar.querySelector('.btn');
+    btn.onclick = async () => {
+      btn.disabled = true;
+      btn.textContent = 'Проверяю...';
+      try {
+        const ups = await api.modUpdates();
+        if (!ups.length) {
+          bar.querySelector('span').textContent = '✓ Все моды последней версии';
+          btn.textContent = 'Проверить ещё раз';
+          btn.disabled = false;
+          return;
+        }
+        bar.querySelector('span').textContent = `Есть обновления: ${ups.map((u) => `${u.title} ${u.from} → ${u.to}`).join(', ')}`;
+        btn.textContent = `Обновить все (${ups.length})`;
+        btn.disabled = false;
+        btn.onclick = async () => {
+          btn.disabled = true;
+          try {
+            const n = await withProgress('Обновление модов', () => api.updateMods(ups));
+            toast(`Обновлено модов: ${n}`, true);
+            loadMods();
+          } catch (e) { toast(errText(e)); btn.disabled = false; }
+        };
+      } catch (e) {
+        toast(errText(e));
+        btn.textContent = 'Проверить обновления';
+        btn.disabled = false;
+      }
+    };
+    return bar;
+  }
+
   async function loadMods(append = false) {
     const list = el('modList');
     const my = ++reqId;
@@ -303,6 +456,22 @@
       list.innerHTML = '<div class="mod-skel"></div>'.repeat(5);
     }
     el('modMore').hidden = true;
+
+    if (mtype === 'modpack') {
+      try {
+        const r = await api.searchPacks({ query: el('modSearch').value.trim(), offset, sort: el('modSort').value });
+        if (my !== reqId) return;
+        if (!append) list.innerHTML = '<div class="hint">Модпак — готовая сборка с десятками модов и настройками. Нажми «Установить» — лаунчер создаст для него <b>отдельную сборку</b>, твои текущие моды и миры не тронутся.</div>';
+        total = r.total;
+        r.hits.forEach((h) => list.appendChild(packRow(h)));
+        offset += r.hits.length;
+        el('modMore').hidden = offset >= total;
+      } catch (e) {
+        if (my !== reqId) return;
+        list.innerHTML = `<div class="empty">Не удалось загрузить: ${esc(errText(e))}</div>`;
+      }
+      return;
+    }
 
     const mc = settings.version || latest.release;
     if ((mtype === 'mod' || mtype === 'shader') && mc && !(await api.fabricSupported(mc))) {
@@ -323,6 +492,7 @@
       const items = await api.mrInstalled();
       if (my !== reqId) return;
       list.innerHTML = '';
+      if (items.length) list.appendChild(updatesBar());
       if (!items.length) list.innerHTML = '<div class="empty">В этой сборке пока ничего не установлено</div>';
       items.sort((a, b) => (a.dependency - b.dependency) || a.title.localeCompare(b.title))
         .forEach((h) => list.appendChild(modRow(h, true)));
