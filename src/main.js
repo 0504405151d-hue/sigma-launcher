@@ -381,28 +381,39 @@ function newer(a, b) {
   return false;
 }
 
+// всегда берём самый последний релиз — промежуточные версии пропускаются
+async function fetchLatestRelease() {
+  const r = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, {
+    headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'SigmaLauncher' }
+  });
+  if (!r.ok) throw new Error(`GitHub ответил ${r.status}`);
+  const rel = await r.json();
+  const asset = (rel.assets || []).find((a) => a.name.toLowerCase().endsWith('.exe'));
+  const version = String(rel.tag_name || '').replace(/^v/, '');
+  return asset && version ? { version, url: asset.browser_download_url } : null;
+}
+
 ipcMain.handle('update:check', async () => {
   if (!UPDATE_REPO) return { available: false };
   try {
-    const r = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/latest`, {
-      headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'SigmaLauncher' }
-    });
-    if (!r.ok) return { available: false, error: `GitHub ответил ${r.status}` };
-    const rel = await r.json();
-    const asset = (rel.assets || []).find((a) => a.name.toLowerCase().endsWith('.exe'));
-    const version = String(rel.tag_name || '').replace(/^v/, '');
-    if (asset && version && newer(version, APP_VERSION)) {
-      pendingUpdate = { version, url: asset.browser_download_url, notes: (rel.name || '').trim() };
-      return { available: true, version, notes: '' };
+    const rel = await fetchLatestRelease();
+    if (rel && newer(rel.version, APP_VERSION)) {
+      pendingUpdate = rel;
+      return { available: true, version: rel.version, notes: '' };
     }
-    return { available: false, latest: version };
+    return { available: false, latest: rel?.version };
   } catch (e) {
-    return { available: false, error: 'нет связи с GitHub' };
+    return { available: false, error: e.message.startsWith('GitHub') ? e.message : 'нет связи с GitHub' };
   }
 });
 
 ipcMain.handle('update:install', async () => {
   if (!pendingUpdate) return false;
+  // перед скачиванием ещё раз проверяем: вдруг пока лаунчер был открыт, вышла версия ещё новее
+  try {
+    const rel = await fetchLatestRelease();
+    if (rel && newer(rel.version, pendingUpdate.version)) pendingUpdate = rel;
+  } catch { /* качаем то, что уже нашли */ }
   const exe = process.env.PORTABLE_EXECUTABLE_FILE;
   if (!exe) { shell.openExternal(pendingUpdate.url); return false; }
 
