@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sigma Launcher — лаунчер Minecraft</title>
+  <meta name="description" content="Бесплатный лаунчер Minecraft: все версии, моды и шейдеры в один клик, свой скин, сборки и автообновления. Windows и Android." />
+  <meta property="og:title" content="Sigma Launcher" />
+  <meta property="og:description" content="Все версии Minecraft, моды и шейдеры в один клик. Скачай и играй." />
+  <meta property="og:image" content="img/home.png" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 4 4'%3E%3Crect width='2' height='2' fill='%235fae3a'/%3E%3Crect x='2' width='2' height='2' fill='%234f9a2e'/%3E%3Crect y='2' width='2' height='2' fill='%237a5233'/%3E%3Crect x='2' y='2' width='2' height='2' fill='%23694529'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;700&family=Pixelify+Sans:wght@500;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --sky-top: #6fb2ff;
+      --sky-low: #bfe2ff;
+      --grass: #5fae3a;
+      --grass-dark: #4a8f2c;
+      --dirt: #7a5233;
+      --dirt-dark: #5e3e26;
+      --stone: #6f6f74;
+      --stone-dark: #5b5b61;
+      --deep: #2c2c34;
+      --bedrock: #19191e;
+      --ink: #0f2236;
+      --paper: #fdfbf6;
+      --pixel: "Pixelify Sans", "Onest", system-ui, sans-serif;
+      --text: "Onest", system-ui, -apple-system, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body { font-family: var(--text); color: var(--paper); background: var(--bedrock); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+    a { color: inherit; }
+    img { display: block; max-width: 100%; height: auto; }
+    .wrap { width: min(1080px, 100% - 40px); margin: 0 auto; }
+    :focus-visible { outline: 3px solid #ffe066; outline-offset: 3px; }
+
+    /* ---------- небо ---------- */
+    .sky {
+      position: relative; overflow: hidden; color: var(--ink);
+      background: linear-gradient(180deg, var(--sky-top) 0%, var(--sky-low) 100%);
+      padding: 28px 0 0;
+    }
+    .top { display: flex; align-items: center; justify-content: space-between; }
+    .logo { display: flex; align-items: center; gap: 10px; font-family: var(--pixel); font-weight: 700; font-size: 20px; text-decoration: none; }
+    .logo i { width: 22px; height: 22px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+    .logo i b { background: var(--grass); }
+    .logo i b:nth-child(2) { background: var(--grass-dark); }
+    .logo i b:nth-child(3), .logo i b:nth-child(4) { background: var(--dirt); }
+    .top a.gh { font-size: 14px; font-weight: 500; text-decoration: none; opacity: .75; }
+    .top a.gh:hover { opacity: 1; }
+
+    .cloud {
+      position: absolute; height: 26px; background: #fff; opacity: .9;
+      box-shadow: 26px -26px 0 #fff, 52px -26px 0 #fff, 78px 0 0 #fff, 104px 0 0 #fff;
+      animation: drift linear infinite;
+    }
+    .cloud.c1 { width: 78px; top: 120px; left: -200px; animation-duration: 90s; }
+    .cloud.c2 { width: 52px; top: 210px; left: -200px; animation-duration: 120s; animation-delay: -60s; transform: scale(.7); }
+    .cloud.c3 { width: 104px; top: 70px; left: -200px; animation-duration: 150s; animation-delay: -100s; }
+    @keyframes drift { to { left: 110%; } }
+
+    .hero { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 1.15fr; gap: 48px; align-items: end; padding-top: 64px; }
+    .hero-text { padding-bottom: 72px; }
+    h1 {
+      font-family: var(--pixel); font-weight: 700; line-height: .95;
+      font-size: clamp(52px, 8vw, 92px); letter-spacing: -.01em;
+      color: #fff; text-shadow: 4px 4px 0 var(--ink);
+    }
+    .lead { margin-top: 22px; font-size: 19px; max-width: 30ch; font-weight: 500; }
+    .downloads { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 30px; }
+    .dl {
+      display: inline-flex; flex-direction: column; justify-content: center; gap: 2px;
+      min-width: 210px; padding: 14px 22px 16px;
+      font-family: var(--pixel); text-decoration: none; color: #fff;
+      background: var(--grass); border: 3px solid var(--ink);
+      box-shadow: inset -4px -4px 0 var(--grass-dark), inset 4px 4px 0 #7fcf55, 4px 4px 0 var(--ink);
+      transition: transform .08s, box-shadow .08s;
+    }
+    .dl b { font-size: 20px; font-weight: 700; }
+    .dl span { font-family: var(--text); font-size: 13px; opacity: .9; }
+    .dl:hover { transform: translate(-2px, -2px); box-shadow: inset -4px -4px 0 var(--grass-dark), inset 4px 4px 0 #7fcf55, 6px 6px 0 var(--ink); }
+    .dl:active { transform: translate(3px, 3px); box-shadow: inset -4px -4px 0 var(--grass-dark), inset 4px 4px 0 #7fcf55, 1px 1px 0 var(--ink); }
+    .dl.alt { background: #8a8f99; box-shadow: inset -4px -4px 0 #6d727c, inset 4px 4px 0 #a9aeb8, 4px 4px 0 var(--ink); }
+    .dl.alt:hover { box-shadow: inset -4px -4px 0 #6d727c, inset 4px 4px 0 #a9aeb8, 6px 6px 0 var(--ink); }
+    .meta { margin-top: 16px; font-size: 14px; opacity: .8; }
+
+    .shot-hero {
+      position: relative; border: 3px solid var(--ink); border-bottom: 0;
+      box-shadow: 8px 0 0 var(--ink);
+      background: #0b0d12;
+    }
+    .shot-hero img { width: 100%; }
+
+    /* граница травы — пиксельная кромка */
+    .grass-edge {
+      height: 28px; position: relative; z-index: 2;
+      background:
+        linear-gradient(90deg, var(--grass) 50%, var(--grass-dark) 50%) 0 0 / 28px 14px repeat-x,
+        linear-gradient(var(--grass) 0 0) 0 14px / 100% 6px no-repeat,
+        linear-gradient(90deg, var(--grass) 0 25%, transparent 25% 50%, var(--grass) 50% 62%, transparent 62%) 0 20px / 56px 8px repeat-x,
+        var(--dirt);
+    }
+
+    /* ---------- слои земли ---------- */
+    .layer { padding: 76px 0; position: relative; }
+    .dirt {
+      background:
+        linear-gradient(45deg, var(--dirt-dark) 25%, transparent 25%, transparent 75%, var(--dirt-dark) 75%) 0 0 / 56px 56px,
+        linear-gradient(45deg, var(--dirt-dark) 25%, transparent 25%, transparent 75%, var(--dirt-dark) 75%) 28px 28px / 56px 56px,
+        var(--dirt);
+    }
+    .stone {
+      background:
+        linear-gradient(90deg, var(--stone-dark) 0 2px, transparent 2px) 0 0 / 64px 64px,
+        linear-gradient(var(--stone-dark) 0 2px, transparent 2px) 0 0 / 64px 64px,
+        var(--stone);
+    }
+    .deep { background: var(--deep); }
+    .layer-edge { height: 16px; background: linear-gradient(90deg, var(--a) 50%, var(--b) 50%) 0 0 / 32px 16px; }
+
+    h2 { font-family: var(--pixel); font-weight: 700; font-size: clamp(32px, 4.5vw, 46px); line-height: 1.05; text-shadow: 3px 3px 0 rgba(0,0,0,.35); }
+    .sub { margin-top: 10px; font-size: 17px; max-width: 56ch; opacity: .9; }
+
+    /* возможности — список «предметов из инвентаря» */
+    .features { margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 48px; }
+    .feat { display: grid; grid-template-columns: 56px 1fr; gap: 16px; padding: 20px 0; border-top: 2px solid rgba(0,0,0,.22); }
+    .slot {
+      width: 56px; height: 56px; display: grid; place-items: center; font-size: 28px;
+      background: #8b8b8b; border: 2px solid; border-color: #373737 #fff #fff #373737;
+    }
+    .feat h3 { font-size: 18px; font-weight: 700; }
+    .feat p { margin-top: 4px; font-size: 15px; opacity: .85; max-width: 48ch; }
+
+    /* скриншоты */
+    .gallery { margin-top: 36px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 22px; }
+    .gallery figure { background: #0b0d12; border: 3px solid #1b1b20; box-shadow: 6px 6px 0 rgba(0,0,0,.35); }
+    .gallery figcaption { padding: 10px 14px; font-size: 14px; background: #1b1b20; }
+
+    /* установка — это действительно шаги, поэтому номера */
+    .install { margin-top: 36px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+    .install h3 { font-family: var(--pixel); font-size: 24px; margin-bottom: 14px; }
+    .steps { list-style: none; counter-reset: s; }
+    .steps li { counter-increment: s; position: relative; padding: 10px 0 10px 48px; font-size: 16px; border-top: 1px solid rgba(255,255,255,.1); }
+    .steps li::before {
+      content: counter(s); position: absolute; left: 0; top: 10px;
+      width: 32px; height: 32px; display: grid; place-items: center;
+      font-family: var(--pixel); font-weight: 700; color: var(--ink); background: #ffe066;
+    }
+    .steps b { color: #ffe066; font-weight: 700; }
+    .note { margin-top: 14px; font-size: 14px; opacity: .7; }
+
+    /* бедрок — подвал */
+    footer {
+      padding: 44px 0 52px; font-size: 14px;
+      background:
+        linear-gradient(45deg, #0f0f12 25%, transparent 25%, transparent 75%, #0f0f12 75%) 0 0 / 24px 24px,
+        linear-gradient(45deg, #0f0f12 25%, transparent 25%, transparent 75%, #0f0f12 75%) 12px 12px / 24px 24px,
+        var(--bedrock);
+    }
+    footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+    footer b { font-weight: 700; color: #fff; }
+    footer .muted { opacity: .6; }
+
+    @media (max-width: 860px) {
+      .hero { grid-template-columns: 1fr; gap: 8px; padding-top: 36px; }
+      .hero-text { padding-bottom: 28px; }
+      .features, .install, .gallery { grid-template-columns: 1fr; }
+      .downloads { flex-direction: column; }
+      .dl { min-width: 0; }
+      .cloud.c2, .cloud.c3 { display: none; }
+      .cloud.c1 { top: 300px; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .cloud { animation: none; left: 12%; }
+      .cloud.c2 { left: 60%; } .cloud.c3 { left: 78%; }
+      html { scroll-behavior: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="sky">
+    <div class="cloud c1" aria-hidden="true"></div>
+    <div class="cloud c2" aria-hidden="true"></div>
+    <div class="cloud c3" aria-hidden="true"></div>
+
+    <div class="wrap">
+      <nav class="top">
+        <a class="logo" href="#"><i><b></b><b></b><b></b><b></b></i>Sigma Launcher</a>
+        <a class="gh" href="https://github.com/0504405151d-hue/sigma-launcher">Код на GitHub</a>
+      </nav>
+
+      <div class="hero">
+        <div class="hero-text">
+          <h1>Sigma<br />Launcher</h1>
+          <p class="lead">Любая версия Minecraft, моды и шейдеры — в один клик. Скачал, ввёл ник, играешь.</p>
+          <div class="downloads">
+            <a class="dl" href="https://github.com/0504405151d-hue/sigma-launcher/releases/latest/download/SigmaLauncher-portable.exe">
+              <b>Скачать для Windows</b><span>Без установки · ~100 МБ</span>
+            </a>
+            <a class="dl alt" href="https://github.com/0504405151d-hue/sigma-launcher/releases/latest/download/SigmaLauncher.apk">
+              <b>Для Android</b><span>Bedrock-серверы и скины</span>
+            </a>
+          </div>
+          <p class="meta" id="ver">Бесплатно. Обновляется само.</p>
+        </div>
+        <div class="shot-hero">
+          <img src="img/home.png" width="1100" height="680" alt="Главный экран Sigma Launcher: ник, сборка, версия и кнопка «Играть»" />
+        </div>
+      </div>
+    </div>
+  </header>
+  <div class="grass-edge" aria-hidden="true"></div>
+
+  <section class="layer dirt">
+    <div class="wrap">
+      <h2>Что внутри</h2>
+      <p class="sub">Всё, что обычно ищешь по разным сайтам, собрано в одном окне.</p>
+      <div class="features">
+        <div class="feat"><div class="slot">🧱</div><div><h3>Все версии</h3><p>От первой альфы 2009 года до свежих снапшотов. Нужную Java лаунчер скачает сам.</p></div></div>
+        <div class="feat"><div class="slot">⚡</div><div><h3>Готовые сборки</h3><p>«Максимум FPS», «Красивая графика», «Удобная игра» — одна кнопка, и всё установлено.</p></div></div>
+        <div class="feat"><div class="slot">🧪</div><div><h3>Моды и шейдеры</h3><p>Поиск по Modrinth прямо в лаунчере. Fabric, зависимости и включение шейдера — автоматически.</p></div></div>
+        <div class="feat"><div class="slot">🎨</div><div><h3>Свой скин</h3><p>Загрузи PNG или нарисуй скин прямо в лаунчере, с 3D-превью и зеркальным рисованием.</p></div></div>
+        <div class="feat"><div class="slot">🗺️</div><div><h3>Сборки и миры</h3><p>У каждой сборки свои моды и миры. Миры из обычного Minecraft переносятся одной кнопкой.</p></div></div>
+        <div class="feat"><div class="slot">🚀</div><div><h3>Без лагов</h3><p>Игра запускается на мощной видеокарте с настроенной Java — меньше фризов даже на ноутбуке.</p></div></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="layer-edge" style="--a: var(--dirt); --b: var(--stone)" aria-hidden="true"></div>
+  <section class="layer stone">
+    <div class="wrap">
+      <h2>Как это выглядит</h2>
+      <div class="gallery">
+        <figure><img src="img/profiles.png" width="1100" height="680" loading="lazy" alt="Экран сборок с готовыми сборками" /><figcaption>Сборки: свои и готовые в один клик</figcaption></figure>
+        <figure><img src="img/skin.png" width="1100" height="680" loading="lazy" alt="Редактор скина" /><figcaption>Редактор скина с 3D-превью</figcaption></figure>
+        <figure><img src="img/worlds.png" width="1100" height="680" loading="lazy" alt="Список миров из всех сборок" /><figcaption>Все миры в одном месте</figcaption></figure>
+        <figure><img src="img/stats.png" width="1100" height="680" loading="lazy" alt="Статистика игрового времени" /><figcaption>Сколько и во что ты играл</figcaption></figure>
+      </div>
+    </div>
+  </section>
+
+  <div class="layer-edge" style="--a: var(--stone); --b: var(--deep)" aria-hidden="true"></div>
+  <section class="layer deep" id="install">
+    <div class="wrap">
+      <h2>Как установить</h2>
+      <div class="install">
+        <div>
+          <h3>Windows</h3>
+          <ol class="steps">
+            <li>Скачай <b>SigmaLauncher-portable.exe</b> по кнопке выше.</li>
+            <li>Запусти файл. Если появится синее окно Windows — нажми <b>«Подробнее»</b>, потом <b>«Выполнить в любом случае»</b>. Это нужно только один раз.</li>
+            <li>Введи ник, выбери версию и нажми <b>«Играть»</b>.</li>
+          </ol>
+          <p class="note">Обновления приходят сами: в лаунчере появится кнопка «Обновить».</p>
+        </div>
+        <div>
+          <h3>Android</h3>
+          <ol class="steps">
+            <li>Открой эту страницу на телефоне и скачай <b>SigmaLauncher.apk</b>.</li>
+            <li>Открой файл и разреши установку из этого источника.</li>
+            <li>Выбери сервер и нажми <b>«Играть»</b> — Minecraft откроется и подключится сам.</li>
+          </ol>
+          <p class="note">На телефоне работает Bedrock-версия: нужен Minecraft из Google Play.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="wrap">
+      <span>Автор: <b>Denis Brulov</b></span>
+      <span class="muted">Sigma Launcher не связан с Mojang и Microsoft. Minecraft — товарный знак Mojang AB.</span>
+    </div>
+  </footer>
+
+  <script>
+    // показываем текущую версию прямо с GitHub
+    fetch('https://api.github.com/repos/0504405151d-hue/sigma-launcher/releases/latest')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((rel) => {
+        if (!rel || !rel.tag_name) return;
+        const d = new Date(rel.published_at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+        document.getElementById('ver').textContent = `Версия ${rel.tag_name.replace(/^v/, '')} от ${d}. Бесплатно, обновляется само.`;
+      })
+      .catch(() => {});
+  </script>
+</body>
+</html>
