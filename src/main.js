@@ -668,6 +668,88 @@ ipcMain.handle('mr:install', async (_e, { id, type }) => {
   }
 });
 
+/* ---------- готовые сборки ---------- */
+const PRESETS = {
+  fps: {
+    name: 'Максимум FPS', color: '#fbbf24',
+    items: [
+      { p: 'sodium', t: 'mod' }, { p: 'lithium', t: 'mod' }, { p: 'ferrite-core', t: 'mod' },
+      { p: 'entityculling', t: 'mod' }, { p: 'immediatelyfast', t: 'mod' }, { p: 'modernfix', t: 'mod' }
+    ]
+  },
+  beauty: {
+    name: 'Красивая графика', color: '#a78bfa',
+    items: [
+      { p: 'sodium', t: 'mod' }, { p: 'iris', t: 'mod' },
+      { p: 'makeup-ultra-fast-shaders', q: 'MakeUp Ultra Fast', t: 'shader' }
+    ]
+  },
+  comfort: {
+    name: 'Удобная игра', color: '#60a5fa',
+    items: [
+      { p: 'sodium', t: 'mod' }, { p: 'xaeros-minimap', q: "Xaero's Minimap", t: 'mod' },
+      { p: 'appleskin', t: 'mod' }, { p: 'jade', t: 'mod' }, { p: 'mouse-tweaks', q: 'Mouse Tweaks', t: 'mod' }
+    ]
+  }
+};
+
+async function presetVersion() {
+  const releases = (await getManifest()).versions.filter((v) => v.type === 'release').slice(0, 8);
+  for (const v of releases) {
+    try {
+      if (await modrinth.fabricSupports(v.id) && await modrinth.latestVersion('sodium', 'mod', v.id)) return v.id;
+    } catch { /* пробуем следующую */ }
+  }
+  throw new Error('Не удалось подобрать версию — проверь интернет');
+}
+
+ipcMain.handle('presets:create', async (_e, key) => {
+  const preset = PRESETS[key];
+  if (!preset) throw new Error('Нет такой сборки');
+  if (mrBusy) throw new Error('Подожди, идёт другая установка');
+  if (gameRunning) throw new Error('Закрой игру перед установкой');
+  mrBusy = true;
+  try {
+    const progress = (text, i) => send('preset-progress', { key, text, i, n: preset.items.length });
+    progress('Подбираю версию...', 0);
+    const mc = await presetVersion();
+
+    const s = ensureProfiles(readRaw());
+    const id = 'p' + Date.now().toString(36);
+    const prof = { id, name: preset.name, version: mc, loader: 'fabric', ramMax: null, color: preset.color, content: {}, created: Date.now() };
+    s.profiles.push(prof);
+    s.activeProfile = id;
+    writeRaw(s);
+    const dir = profileDir(s, prof);
+
+    const content = {};
+    const failed = [];
+    const log = (l) => send('log', l);
+    for (let i = 0; i < preset.items.length; i++) {
+      const it = preset.items[i];
+      progress(`Ставлю ${it.q || it.p} (${i + 1}/${preset.items.length})`, i);
+      let item = null;
+      try {
+        item = await modrinth.install({ project: it.p, type: it.t, mc, gameDir: dir, content, log });
+      } catch {
+        if (it.q) {
+          try {
+            const hit = (await modrinth.search({ query: it.q, type: it.t, mc })).hits[0];
+            if (hit) item = await modrinth.install({ project: hit.id, type: it.t, mc, gameDir: dir, content, log });
+          } catch { /* ниже отметим как не установленный */ }
+        }
+      }
+      if (!item) failed.push(it.q || it.p);
+      else if (it.t === 'shader') setIrisShader(dir, item.file);
+      updateProfile(id, (p) => { p.content = { ...content }; });
+    }
+    progress('Готово', preset.items.length);
+    return { id, mc, failed };
+  } finally {
+    mrBusy = false;
+  }
+});
+
 ipcMain.handle('mr:remove', (_e, id) => {
   const s = loadSettings();
   const content = { ...(s.profile.content || {}) };

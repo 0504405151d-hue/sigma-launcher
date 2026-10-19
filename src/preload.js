@@ -43,6 +43,9 @@ contextBridge.exposeInMainWorld('api', {
   mrInstall: (id, type) => ipcRenderer.invoke('mr:install', { id, type }),
   mrRemove: (id) => ipcRenderer.invoke('mr:remove', id),
 
+  createPreset: (key) => ipcRenderer.invoke('presets:create', key),
+  onPresetProgress: (cb) => ipcRenderer.on('preset-progress', (_e, d) => cb(d)),
+
   stats: () => ipcRenderer.invoke('stats:get'),
   resetStats: () => ipcRenderer.invoke('stats:reset'),
   discordAvailable: () => ipcRenderer.invoke('discord:available'),

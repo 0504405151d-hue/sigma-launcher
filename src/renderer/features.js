@@ -87,6 +87,42 @@
   }
   el('profNew').onclick = () => openModal(null);
 
+  /* ---------- готовые сборки ---------- */
+  document.querySelectorAll('.preset').forEach((card) => {
+    const btn = card.querySelector('.btn');
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.innerHTML = '<div></div>';
+    card.appendChild(bar);
+    btn.onclick = async () => {
+      if (busy) return toast('Дождись окончания запуска');
+      document.querySelectorAll('.preset .btn').forEach((b) => (b.disabled = true));
+      card.classList.add('busy');
+      btn.textContent = 'Подбираю версию...';
+      try {
+        const r = await api.createPreset(card.dataset.preset);
+        await reloadSettings();
+        renderProfiles();
+        toast(r.failed.length
+          ? `Сборка готова (${r.mc}). Не нашлось для этой версии: ${r.failed.join(', ')}`
+          : `Сборка готова на ${r.mc} и выбрана — жми ИГРАТЬ`, !r.failed.length);
+      } catch (e) {
+        toast(errText(e));
+      } finally {
+        card.classList.remove('busy');
+        bar.firstChild.style.width = '0';
+        btn.textContent = 'Создать';
+        document.querySelectorAll('.preset .btn').forEach((b) => (b.disabled = false));
+      }
+    };
+  });
+  api.onPresetProgress((d) => {
+    const card = document.querySelector(`.preset[data-preset="${d.key}"]`);
+    if (!card) return;
+    card.querySelector('.btn').textContent = d.text;
+    card.querySelector('.bar div').style.width = `${(d.i / d.n) * 100}%`;
+  });
+
   /* ---------- модалка сборки ---------- */
   let editing = null;
   let pmLoader = 'vanilla';

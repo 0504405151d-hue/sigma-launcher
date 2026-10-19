@@ -128,4 +128,4 @@ function remove({ id, gameDir, content }) {
   delete content[id];
 }
 
-module.exports = { fabricSupports, ensureFabric, search, install, remove, TYPES };
+module.exports = { fabricSupports, ensureFabric, search, install, remove, latestVersion, TYPES };
