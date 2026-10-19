@@ -320,7 +320,71 @@ async function applyUpdate({ gameDir, content, upd }) {
   };
 }
 
+/* ---------- код сборки (без файлов и серверов) ---------- */
+const zlib = require('zlib');
+const CODE_PREFIX = 'SIGMA1:';
+
+async function makeShareCode({ name, mc, loaderVersion, gameDir, shader }) {
+  const ids = [];
+  let skipped = 0;
+  for (const type of Object.keys(TYPES)) {
+    const dir = path.join(gameDir, folderOf(type));
+    let list = [];
+    try { list = fs.readdirSync(dir).filter((f) => /\.(jar|zip)$/i.test(f) && fs.statSync(path.join(dir, f)).isFile()); } catch { continue; }
+    if (!list.length) continue;
+    const hashes = Object.fromEntries(list.map((f) => [hashFile(path.join(dir, f)), f]));
+    const found = await json(`${MR}/version_files`, { hashes: Object.keys(hashes), algorithm: 'sha1' });
+    for (const h of Object.keys(hashes)) {
+      if (found[h]) ids.push(found[h].id); else skipped++;
+    }
+  }
+  const data = { n: name, v: mc, l: loaderVersion || null, m: [...new Set(ids)] };
+  if (shader) data.s = shader;
+  const code = CODE_PREFIX + zlib.deflateRawSync(Buffer.from(JSON.stringify(data)), { level: 9 }).toString('base64url');
+  return { code, mods: data.m.length, skipped };
+}
+
+function readShareCode(text) {
+  const m = String(text || '').match(/SIGMA1:([A-Za-z0-9_-]{8,})/);
+  if (!m) return null;
+  try {
+    const d = JSON.parse(zlib.inflateRawSync(Buffer.from(m[1], 'base64url')).toString('utf8'));
+    if (!d.v || !Array.isArray(d.m)) return null;
+    return { code: CODE_PREFIX + m[1], name: String(d.n || 'Сборка от друга').slice(0, 32), mc: d.v, loaderVersion: d.l, versions: d.m, shader: d.s || null };
+  } catch { return null; }
+}
+
+async function installShareCode({ data, gameDir, progress }) {
+  const versions = [];
+  for (let i = 0; i < data.versions.length; i += 80) {
+    const part = data.versions.slice(i, i + 80);
+    versions.push(...await json(`${MR}/versions?ids=${encodeURIComponent(JSON.stringify(part))}`));
+  }
+  const pids = [...new Set(versions.map((v) => v.project_id))];
+  const projects = pids.length ? await json(`${MR}/projects?ids=${encodeURIComponent(JSON.stringify(pids))}`) : [];
+  const meta = Object.fromEntries(projects.map((p) => [p.id, p]));
+  const content = {};
+  let failed = 0;
+  for (let i = 0; i < versions.length; i++) {
+    const v = versions[i];
+    const p = meta[v.project_id] || {};
+    const type = p.project_type === 'shader' ? 'shader' : p.project_type === 'resourcepack' ? 'resourcepack' : 'mod';
+    const f = v.files.find((x) => x.primary) || v.files[0];
+    progress?.(`Скачиваю ${p.title || f.filename} (${i + 1}/${versions.length})`, i / versions.length);
+    const folder = path.join(gameDir, folderOf(type));
+    fs.mkdirSync(folder, { recursive: true });
+    try { await download(f.url, path.join(folder, f.filename)); } catch { failed++; continue; }
+    content[v.project_id] = {
+      id: v.project_id, title: p.title || f.filename, icon: p.icon_url || null, type, file: f.filename,
+      version: v.version_number, versionId: v.id, sha1: f.hashes?.sha1, sha512: f.hashes?.sha512,
+      url: f.url, size: f.size, dependency: false
+    };
+  }
+  return { content, failed };
+}
+
 module.exports = {
+  makeShareCode, readShareCode, installShareCode,
   fabricSupports, ensureFabric, search, install, remove, latestVersion, TYPES,
   searchPacks, downloadPack, installMrpack, exportMrpack, checkUpdates, applyUpdate
 };

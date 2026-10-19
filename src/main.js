@@ -1226,6 +1226,56 @@ ipcMain.handle('profiles:export', async (_e, id) => {
   return { ...r, file: out.filePath };
 });
 
+/* ---------- код сборки ---------- */
+async function fabricLoaderFor(s, p, mc) {
+  if (p.loader !== 'fabric') return null;
+  if (p.fabricLoader) return p.fabricLoader;
+  const vid = await modrinth.ensureFabric(s.gameDir, mc);
+  return vid.replace(/^fabric-loader-/, '').slice(0, -(mc.length + 1));
+}
+ipcMain.handle('share:code', async (_e, id) => {
+  const s = loadSettings();
+  const p = s.profiles.find((x) => x.id === id);
+  if (!p) throw new Error('Сборка не найдена');
+  const mc = p.version || (await getManifest()).latest.release;
+  const dir = profileDir(s, p);
+  const r = await modrinth.makeShareCode({
+    name: p.name, mc, loaderVersion: await fabricLoaderFor(s, p, mc), gameDir: dir, shader: activeIrisShader(dir)
+  });
+  require('electron').clipboard.writeText(`Сборка «${p.name}» для Sigma Launcher — скопируй это сообщение и открой лаунчер:\n${r.code}`);
+  return r;
+});
+ipcMain.handle('share:peek', (_e, text) => {
+  const d = modrinth.readShareCode(text);
+  return d ? { name: d.name, mc: d.mc, mods: d.versions.length, code: d.code } : null;
+});
+ipcMain.handle('share:clipboard', () => {
+  const d = modrinth.readShareCode(process.env.SIGMA_CLIP_TEST || require('electron').clipboard.readText());
+  return d ? { name: d.name, mc: d.mc, mods: d.versions.length, code: d.code } : null;
+});
+ipcMain.handle('share:install', async (_e, text) => {
+  const data = modrinth.readShareCode(text);
+  if (!data) throw new Error('Это не код сборки');
+  if (mrBusy) throw new Error('Подожди, идёт другая установка');
+  mrBusy = true;
+  const tmpDir = path.join(DATA, 'profiles', 'tmp-' + Date.now().toString(36));
+  try {
+    const progress = (t, f) => send('pack-progress', { text: t, percent: Math.round(f * 100) });
+    const r = await modrinth.installShareCode({ data, gameDir: tmpDir, progress });
+    const { p, dir } = newProfile({
+      name: data.name, version: data.mc, loader: data.loaderVersion ? 'fabric' : 'vanilla',
+      fabricLoader: data.loaderVersion || null, content: r.content, color: '#f472b6'
+    });
+    fs.mkdirSync(path.dirname(dir), { recursive: true });
+    fs.renameSync(tmpDir, dir);
+    if (data.shader && fs.existsSync(path.join(dir, 'shaderpacks', data.shader))) setIrisShader(dir, data.shader);
+    return { name: p.name, mc: data.mc, mods: Object.keys(r.content).length, failed: r.failed };
+  } catch (e) {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+    throw e;
+  } finally { mrBusy = false; }
+});
+
 ipcMain.handle('mr:updates', async () => {
   const s = loadSettings();
   const mc = s.version || (await getManifest()).latest.release;

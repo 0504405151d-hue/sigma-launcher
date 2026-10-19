@@ -57,7 +57,7 @@
         <div class="prof-btns">
           <button class="btn grow ${p.active ? 'on' : 'primary'}" data-a="select">${p.active ? 'Активна' : 'Выбрать'}</button>
           <button class="btn" data-a="edit" title="Изменить">✎</button>
-          <button class="btn" data-a="share" title="Поделиться с другом">📤</button>
+          <button class="btn" data-a="share" title="Поделиться с другом">🔗</button>
           <button class="btn" data-a="open" title="Открыть папку">📁</button>
           ${p.id === 'default' ? '' : '<button class="btn ghost" data-a="del" title="Удалить">🗑</button>'}
         </div>`;
@@ -71,12 +71,7 @@
       };
       card.querySelector('[data-a=edit]').onclick = () => openModal(p);
       card.querySelector('[data-a=open]').onclick = () => api.openProfile(p.id);
-      card.querySelector('[data-a=share]').onclick = async () => {
-        try {
-          const r = await withProgress(`Упаковываю «${p.name}»`, () => api.exportProfile(p.id));
-          if (r) toast('Файл сборки готов — отправь его другу. Он откроет его кнопкой «Импорт сборки»', true);
-        } catch (e) { toast(errText(e)); }
-      };
+      card.querySelector('[data-a=share]').onclick = () => openShare(p);
       const del = card.querySelector('[data-a=del]');
       if (del) del.onclick = async () => {
         if (!confirm(`Удалить сборку «${p.name}» вместе с её модами и мирами?`)) return;
@@ -93,15 +88,131 @@
     grid.appendChild(add);
   }
   el('profNew').onclick = () => openModal(null);
-  el('profImport').onclick = async () => {
+  el('profImport').onclick = () => openImport();
+
+  /* ---------- поделиться сборкой кодом ---------- */
+  const OWN = 'sigmaOwnCodes';
+  const remember = (key, code) => {
     try {
-      const r = await withProgress('Импорт сборки', () => api.importPack());
-      if (!r) return;
-      await reloadSettings();
-      renderProfiles();
-      toast(`Сборка «${r.name}» добавлена и выбрана (${r.mc}) — жми ИГРАТЬ`, true);
-    } catch (e) { toast(errText(e)); }
+      const list = JSON.parse(localStorage.getItem(key) || '[]');
+      list.push(code.slice(0, 80));
+      localStorage.setItem(key, JSON.stringify(list.slice(-30)));
+    } catch { /* хранилище недоступно */ }
   };
+  const known = (key, code) => { try { return JSON.parse(localStorage.getItem(key) || '[]').includes(code.slice(0, 80)); } catch { return false; } };
+
+  function modal(id, html) {
+    let m = document.getElementById(id);
+    if (!m) {
+      m = document.createElement('div');
+      m.id = id;
+      m.className = 'modal';
+      document.body.appendChild(m);
+      m.addEventListener('mousedown', (e) => { if (e.target === m) m.hidden = true; });
+    }
+    m.innerHTML = `<div class="modal-box share">${html}</div>`;
+    m.hidden = false;
+    m.querySelectorAll('[data-close]').forEach((b) => (b.onclick = () => { m.hidden = true; }));
+    return m;
+  }
+
+  function openShare(p) {
+    const m = modal('shareModal', `
+      <div class="share-icon">🔗</div>
+      <h2>Поделиться «${esc(p.name)}»</h2>
+      <p>Нажми кнопку — код скопируется. Отправь его другу в Telegram. Когда он откроет Sigma Launcher, лаунчер сам предложит установить сборку.</p>
+      <button class="btn primary big" data-copy>Скопировать код сборки</button>
+      <button class="btn ghost" data-file>или сохранить файлом (.mrpack, вместе с настройками модов)</button>
+      <div class="modal-actions"><button class="btn ghost" data-close>Закрыть</button></div>`);
+    m.querySelector('[data-copy]').onclick = async (e) => {
+      const b = e.currentTarget;
+      b.disabled = true;
+      b.textContent = 'Собираю код...';
+      try {
+        const r = await api.shareCode(p.id);
+        remember(OWN, r.code);
+        b.textContent = '✓ Скопировано — вставь другу (Ctrl+V)';
+        if (r.skipped) toast(`${r.skipped} файл(ов) не с Modrinth не попали в код — для них отправь файлом`);
+      } catch (err) {
+        toast(errText(err));
+        b.textContent = 'Скопировать код сборки';
+      }
+      b.disabled = false;
+    };
+    m.querySelector('[data-file]').onclick = async () => {
+      m.hidden = true;
+      try {
+        const r = await withProgress(`Упаковываю «${p.name}»`, () => api.exportProfile(p.id));
+        if (r) toast('Файл сборки готов — отправь его другу', true);
+      } catch (err) { toast(errText(err)); }
+    };
+  }
+
+  async function installFromCode(text) {
+    const r = await withProgress('Устанавливаю сборку от друга', () => api.installCode(text));
+    remember('sigmaSeenCodes', text);
+    await reloadSettings();
+    if (document.getElementById('page-profiles').classList.contains('active')) renderProfiles();
+    toast(`Готово! Сборка «${r.name}» (${r.mc}, модов: ${r.mods}) выбрана — жми ИГРАТЬ` + (r.failed ? `. Не скачалось: ${r.failed}` : ''), !r.failed);
+  }
+
+  function openImport() {
+    const m = modal('importModal', `
+      <div class="share-icon">📥</div>
+      <h2>Импорт сборки</h2>
+      <p>Вставь код, который прислал друг.</p>
+      <textarea id="codeInput" rows="4" placeholder="SIGMA1:..." spellcheck="false"></textarea>
+      <div class="code-peek" id="codePeek"></div>
+      <button class="btn primary big" data-install disabled>Установить</button>
+      <button class="btn ghost" data-file>или выбрать файл .mrpack</button>
+      <div class="modal-actions"><button class="btn ghost" data-close>Отмена</button></div>`);
+    const ta = m.querySelector('#codeInput');
+    const btn = m.querySelector('[data-install]');
+    ta.oninput = async () => {
+      const d = await api.peekCode(ta.value);
+      btn.disabled = !d;
+      m.querySelector('#codePeek').textContent = d ? `«${d.name}» · Minecraft ${d.mc} · модов: ${d.mods}` : (ta.value.trim() ? 'Это не похоже на код сборки' : '');
+    };
+    btn.onclick = async () => {
+      m.hidden = true;
+      try { await installFromCode(ta.value); } catch (err) { toast(errText(err)); }
+    };
+    m.querySelector('[data-file]').onclick = async () => {
+      m.hidden = true;
+      try {
+        const r = await withProgress('Импорт сборки', () => api.importPack());
+        if (!r) return;
+        await reloadSettings();
+        renderProfiles();
+        toast(`Сборка «${r.name}» добавлена и выбрана (${r.mc}) — жми ИГРАТЬ`, true);
+      } catch (err) { toast(errText(err)); }
+    };
+    setTimeout(() => ta.focus(), 50);
+  }
+
+  // друг скопировал сообщение с кодом → лаунчер сам предлагает установить
+  let checking = false;
+  async function checkClipboard() {
+    if (checking || busy) return;
+    checking = true;
+    try {
+      const d = await api.clipboardCode();
+      if (!d || known(OWN, d.code) || known('sigmaSeenCodes', d.code)) return;
+      remember('sigmaSeenCodes', d.code);
+      const m = modal('offerModal', `
+        <div class="share-icon">🎁</div>
+        <h2>Друг отправил сборку</h2>
+        <p><b>«${esc(d.name)}»</b><br/>Minecraft ${esc(d.mc)} · модов: ${d.mods}</p>
+        <button class="btn primary big" data-yes>Установить</button>
+        <div class="modal-actions"><button class="btn ghost" data-close>Не сейчас</button></div>`);
+      m.querySelector('[data-yes]').onclick = async () => {
+        m.hidden = true;
+        try { await installFromCode(d.code); } catch (err) { toast(errText(err)); }
+      };
+    } finally { checking = false; }
+  }
+  window.addEventListener('focus', checkClipboard);
+  setTimeout(checkClipboard, 1500);
 
   /* ---------- окно прогресса для долгих операций ---------- */
   async function withProgress(title, fn) {
