@@ -682,6 +682,55 @@ ipcMain.handle('profiles:delete', (_e, id) => {
   return true;
 });
 
+/* ---------- миры ---------- */
+function worldSources() {
+  const s = loadSettings();
+  const list = s.profiles.map((p) => ({ key: 'p:' + p.id, label: `Сборка «${p.name}»`, dir: path.join(profileDir(s, p), 'saves'), current: p.id === s.activeProfile }));
+  const mc = path.join(app.getPath('appData'), '.minecraft', 'saves');
+  list.push({ key: 'mc', label: 'Обычный Minecraft / TLauncher', dir: mc, current: false });
+  return { s, list };
+}
+
+ipcMain.handle('worlds:list', () => {
+  const { list } = worldSources();
+  const out = [];
+  for (const src of list) {
+    let entries = [];
+    try { entries = fs.readdirSync(src.dir, { withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      const dir = path.join(src.dir, e.name);
+      const level = path.join(dir, 'level.dat');
+      if (!fs.existsSync(level)) continue;
+      let icon = null;
+      try {
+        const ip = path.join(dir, 'icon.png');
+        if (fs.statSync(ip).size < 200 * 1024) icon = 'data:image/png;base64,' + fs.readFileSync(ip).toString('base64');
+      } catch { /* иконки нет */ }
+      out.push({ name: e.name, path: dir, source: src.label, sourceKey: src.key, current: src.current, played: fs.statSync(level).mtimeMs, icon });
+    }
+  }
+  return out.sort((a, b) => b.played - a.played);
+});
+
+ipcMain.handle('worlds:copy', (_e, from) => {
+  if (gameRunning) throw new Error('Закрой игру перед копированием');
+  const { s, list } = worldSources();
+  if (!list.some((x) => path.resolve(from).startsWith(path.resolve(x.dir) + path.sep))) throw new Error('Неизвестный мир');
+  const saves = path.join(s.profile.dir, 'saves');
+  fs.mkdirSync(saves, { recursive: true });
+  let name = path.basename(from);
+  let dest = path.join(saves, name);
+  for (let i = 2; fs.existsSync(dest); i++) dest = path.join(saves, `${name} (${i})`);
+  fs.cpSync(from, dest, { recursive: true, filter: (src) => path.basename(src) !== 'session.lock' });
+  return path.basename(dest);
+});
+
+ipcMain.handle('worlds:open', (_e, p) => {
+  const { list } = worldSources();
+  if (list.some((x) => path.resolve(p).startsWith(path.resolve(x.dir) + path.sep))) shell.openPath(p);
+});
+
 ipcMain.handle('profiles:open', (_e, id) => {
   const s = loadSettings();
   const p = s.profiles.find((x) => x.id === id);

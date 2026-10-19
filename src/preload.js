@@ -46,6 +46,10 @@ contextBridge.exposeInMainWorld('api', {
   createPreset: (key) => ipcRenderer.invoke('presets:create', key),
   onPresetProgress: (cb) => ipcRenderer.on('preset-progress', (_e, d) => cb(d)),
 
+  worlds: () => ipcRenderer.invoke('worlds:list'),
+  copyWorld: (p) => ipcRenderer.invoke('worlds:copy', p),
+  openWorld: (p) => ipcRenderer.invoke('worlds:open', p),
+
   stats: () => ipcRenderer.invoke('stats:get'),
   resetStats: () => ipcRenderer.invoke('stats:reset'),
   discordAvailable: () => ipcRenderer.invoke('discord:available'),

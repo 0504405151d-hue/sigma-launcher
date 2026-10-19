@@ -66,7 +66,7 @@
         await api.selectProfile(p.id);
         await reloadSettings();
         renderProfiles();
-        toast(`Сборка «${p.name}» выбрана`, true);
+        toast(`Сборка «${p.name}» выбрана. У неё свои миры — перенести старые можно во вкладке «Миры»`, true);
       };
       card.querySelector('[data-a=edit]').onclick = () => openModal(p);
       card.querySelector('[data-a=open]').onclick = () => api.openProfile(p.id);
@@ -105,7 +105,7 @@
         renderProfiles();
         toast(r.failed.length
           ? `Сборка готова (${r.mc}). Не нашлось для этой версии: ${r.failed.join(', ')}`
-          : `Сборка готова на ${r.mc} и выбрана — жми ИГРАТЬ`, !r.failed.length);
+          : `Сборка готова на ${r.mc} и выбрана. Старые миры — во вкладке «Миры»`, !r.failed.length);
       } catch (e) {
         toast(errText(e));
       } finally {

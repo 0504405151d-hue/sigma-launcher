@@ -41,6 +41,9 @@
       <button class="nav" data-page="skin" title="Скин">
         <svg viewBox="0 0 24 24"><path d="M8 3h8l4 4-3 2v12H7V9L4 7z"/></svg><span>Скин</span>
       </button>
+      <button class="nav" data-page="worlds" title="Миры">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span>Миры</span>
+      </button>
       <button class="nav" data-page="stats" title="Статистика">
         <svg viewBox="0 0 24 24"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Статистика</span>
       </button>
@@ -196,6 +199,19 @@
         </div>
         <div class="mod-list" id="modList"></div>
         <button class="btn ghost more" id="modMore" hidden>Показать ещё</button>
+      </section>
+
+      <!-- WORLDS -->
+      <section class="page" id="page-worlds">
+        <div class="page-head">
+          <div>
+            <h2>Миры</h2>
+            <div class="muted mods-for" id="worldsFor">—</div>
+          </div>
+          <button class="btn ghost" id="worldsRefresh">Обновить</button>
+        </div>
+        <div class="hint">У каждой сборки свои миры. Если мир «пропал» — он лежит в другой сборке или в обычном Minecraft. Нажми <b>«Перенести сюда»</b>, и копия появится в текущей сборке. Оригинал не трогается.</div>
+        <div class="world-list" id="worldList"></div>
       </section>
 
       <!-- STATS -->
@@ -463,5 +479,6 @@
   <script src="editor.js"></script>
   <script src="bedrock.js"></script>
   <script src="features.js"></script>
+  <script src="worlds.js"></script>
 </body>
 </html>
