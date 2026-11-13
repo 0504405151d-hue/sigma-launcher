@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('api', {
 
   checkUpdate: () => ipcRenderer.invoke('update:check'),
   installUpdate: () => ipcRenderer.invoke('update:install'),
+  releaseNotes: (v) => ipcRenderer.invoke('update:notes', v),
 
   bedrockStatus: () => ipcRenderer.invoke('bedrock:status'),
   bedrockLaunch: () => ipcRenderer.invoke('bedrock:launch'),

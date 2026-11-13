@@ -806,3 +806,7 @@ body.idle .cube, #page-home:not(.active) .cube { animation-play-state: paused; }
 }
 .modal-box.share textarea:focus { border-color: var(--accent-dark); }
 .code-peek { font-size: 12.5px; color: var(--accent); min-height: 16px; }
+
+.whats-new { list-style: none; text-align: left; width: 100%; display: flex; flex-direction: column; gap: 8px; margin: 6px 0 4px; }
+.whats-new li { position: relative; padding-left: 22px; font-size: 13.5px; line-height: 1.45; }
+.whats-new li::before { content: "✓"; position: absolute; left: 2px; color: var(--accent); font-weight: 800; }

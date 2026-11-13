@@ -328,7 +328,7 @@ $('#clearLog').onclick = () => { con.innerHTML = ''; lines = 0; };
   $('#totalRam').textContent = info.totalRam;
   $('#appVer').textContent = 'v' + info.version;
   if (settings.lastSeenVersion && settings.lastSeenVersion !== info.version) {
-    setTimeout(() => toast(`Лаунчер обновлён до v${info.version} 🎉`, true), 600);
+    setTimeout(() => showWhatsNew(info.version), 700);
   }
   if (settings.lastSeenVersion !== info.version) api.setSettings({ lastSeenVersion: info.version });
   const maxRam = Math.max(2048, Math.floor((info.totalRam * 0.8) / 256) * 256);
@@ -377,3 +377,23 @@ function applyAccent(name) {
   const s = await api.getSettings();
   applyAccent(s.accent || 'green');
 })();
+
+/* ---------- «Что нового» после обновления ---------- */
+async function showWhatsNew(version) {
+  let notes = [];
+  try { notes = await api.releaseNotes(version); } catch { /* без интернета */ }
+  const m = document.createElement('div');
+  m.className = 'modal';
+  m.innerHTML = `<div class="modal-box share"><div class="share-icon">🎉</div><h2></h2><ul class="whats-new"></ul>
+    <button class="btn primary big" data-ok>Круто</button></div>`;
+  m.querySelector('h2').textContent = `Лаунчер обновлён до v${version}`;
+  const ul = m.querySelector('ul');
+  (notes.length ? notes : ['Исправления и улучшения']).forEach((t) => {
+    const li = document.createElement('li');
+    li.textContent = t;
+    ul.appendChild(li);
+  });
+  m.querySelector('[data-ok]').onclick = () => m.remove();
+  m.addEventListener('mousedown', (e) => { if (e.target === m) m.remove(); });
+  document.body.appendChild(m);
+}

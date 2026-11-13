@@ -436,6 +436,20 @@ ipcMain.handle('update:check', async () => {
   }
 });
 
+// список изменений для окна «Что нового»: строки из описания релиза
+ipcMain.handle('update:notes', async (_e, version) => {
+  if (!UPDATE_REPO) return [];
+  const r = await fetch(`https://api.github.com/repos/${UPDATE_REPO}/releases/tags/v${encodeURIComponent(version)}`, {
+    headers: { Accept: 'application/vnd.github+json', 'User-Agent': 'SigmaLauncher' }
+  });
+  if (!r.ok) return [];
+  const rel = await r.json();
+  return String(rel.body || '').split(/\r?\n/)
+    .map((l) => l.replace(/^[-*•]\s*/, '').trim())
+    .filter((l) => l && !/^(Co-Authored-By|Claude-Session|Signed-off-by):/i.test(l))
+    .slice(0, 12);
+});
+
 ipcMain.handle('update:install', async () => {
   if (!pendingUpdate) return false;
   // перед скачиванием ещё раз проверяем: вдруг пока лаунчер был открыт, вышла версия ещё новее
