@@ -270,6 +270,8 @@ async function installUpdate() {
     const ok = await api.installUpdate();
     if (!ok) { setBusy(false); showUpdate(); toast('Скачай новую версию в открывшемся окне браузера', true); }
   } catch (e) {
+    const o = document.getElementById('updOverlay');
+    if (o) o.hidden = true;
     toast(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''));
     setBusy(false);
     showUpdate();

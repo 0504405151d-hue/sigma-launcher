@@ -11,6 +11,10 @@ const modrinth = require('./modrinth');
 
 const DATA = path.join(app.getPath('appData'), '.sigmalauncher');
 const SETTINGS_FILE = path.join(DATA, 'settings.json');
+const updater = require('./updater');
+const UPD = updater.detectRole(DATA);
+// установщик обновления — отдельный профиль, чтобы не мешать новой версии
+if (UPD.role === 'finisher') app.setPath('userData', path.join(app.getPath('temp'), 'sigma-updater-profile'));
 const JAVA_DIR = path.join(DATA, 'java');
 const MANIFEST_URL = 'https://piston-meta.mojang.com/mc/game/version_manifest_v2.json';
 
@@ -396,123 +400,6 @@ ipcMain.handle('bedrock:ping', (_e, host, port) => new Promise((resolve) => {
 }));
 
 /* ---------- self-update ---------- */
-// Окно «Перезапуск…»: живёт, пока старый exe заменяется и новая версия не откроется
-function startRestartSplash(tmp, exe, version) {
-  const q = (v) => `'${String(v).replace(/'/g, "''")}'`;
-  const ps = `
-$tmp = ${q(tmp)}
-$exe = ${q(exe)}
-$ver = ${q(version)}
-$script:state = 0
-
-# запасной путь без окна: главное — заменить файл и запустить новую версию
-function Finish-Without-UI {
-  for ($i = 0; $i -lt 90 -and $script:state -eq 0; $i++) {
-    try { Move-Item -LiteralPath $tmp -Destination $exe -Force -ErrorAction Stop; $script:state = 1 }
-    catch { Start-Sleep -Seconds 1 }
-  }
-  if ($script:state -eq 1) { Start-Process -FilePath $exe }
-}
-
-try {
-Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-[System.Windows.Forms.Application]::EnableVisualStyles()
-
-$bg   = [System.Drawing.Color]::FromArgb(17, 20, 27)
-$green = [System.Drawing.Color]::FromArgb(74, 222, 128)
-$muted = [System.Drawing.Color]::FromArgb(138, 147, 166)
-
-$form = New-Object System.Windows.Forms.Form
-$form.Text = 'Обновление Sigma Launcher'
-$form.FormBorderStyle = 'None'
-$form.StartPosition = 'CenterScreen'
-$form.Size = New-Object System.Drawing.Size(400, 170)
-$form.BackColor = $bg
-$form.TopMost = $true
-$form.Add_Paint({ param($s, $e)
-  $pen = New-Object System.Drawing.Pen([System.Drawing.Color]::FromArgb(38, 44, 57), 2)
-  $e.Graphics.DrawRectangle($pen, 1, 1, $form.Width - 2, $form.Height - 2)
-})
-
-function Add-Label($text, $y, $size, $color, $bold) {
-  $l = New-Object System.Windows.Forms.Label
-  $l.Text = $text
-  $l.ForeColor = $color
-  $style = if ($bold) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }
-  $l.Font = New-Object System.Drawing.Font('Segoe UI', $size, $style)
-  $l.AutoSize = $false
-  $l.Size = New-Object System.Drawing.Size(352, ([int]($size * 2.2)))
-  $l.Location = New-Object System.Drawing.Point(24, $y)
-  $form.Controls.Add($l)
-  return $l
-}
-
-Add-Label 'SIGMA launcher' 18 9 $green $true | Out-Null
-Add-Label "Обновление до v$ver" 42 14 ([System.Drawing.Color]::White) $true | Out-Null
-$status = Add-Label 'Устанавливаю обновление...' 80 10 $muted $false
-
-$bar = New-Object System.Windows.Forms.ProgressBar
-$bar.Style = 'Marquee'
-$bar.MarqueeAnimationSpeed = 25
-$bar.Size = New-Object System.Drawing.Size(352, 8)
-$bar.Location = New-Object System.Drawing.Point(24, 126)
-$form.Controls.Add($bar)
-
-$script:start = Get-Date
-$script:launched = $null
-
-$timer = New-Object System.Windows.Forms.Timer
-$timer.Interval = 500
-$timer.Add_Tick({
-  $elapsed = ((Get-Date) - $script:start).TotalSeconds
-  if ($script:state -eq 0) {
-    try {
-      Move-Item -LiteralPath $tmp -Destination $exe -Force -ErrorAction Stop
-      $script:state = 1
-      $status.Text = 'Запускаю новую версию...'
-      Start-Process -FilePath $exe
-      $script:launched = Get-Date
-    } catch {
-      if ($elapsed -gt 60) {
-        $script:state = 9
-        $status.Text = 'Не получилось заменить файл. Запусти лаунчер вручную.'
-        $bar.Visible = $false
-      }
-    }
-  } elseif ($script:state -eq 1) {
-    $ready = Get-Process -ErrorAction SilentlyContinue |
-      Where-Object { $_.Id -ne $PID -and $_.MainWindowTitle -eq 'Sigma Launcher' }
-    if ($ready -or ((Get-Date) - $script:launched).TotalSeconds -gt 90) { $timer.Stop(); $form.Close() }
-  } elseif ($elapsed -gt 75) {
-    $timer.Stop(); $form.Close()
-  }
-})
-$form.Add_Shown({ $form.Activate(); $timer.Start() })
-[System.Windows.Forms.Application]::Run($form)
-} catch { }
-# если окно не смогло показаться или закрылось раньше времени — доделываем без него
-if ($script:state -eq 0) { Finish-Without-UI }
-Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue
-`;
-  const file = path.join(os.tmpdir(), `sigma-update-${Date.now()}.ps1`);
-  // BOM — чтобы Windows PowerShell правильно прочитал русский текст
-  fs.writeFileSync(file, '\ufeff' + ps.replace(/\n/g, '\r\n'), 'utf8');
-  const child = require('child_process').spawn('powershell.exe',
-    ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', file],
-    { detached: true, stdio: 'ignore', windowsHide: true });
-  // запасной вариант без окна, если PowerShell недоступен
-  child.on('error', () => {
-    const bat = path.join(os.tmpdir(), `sigma-update-${Date.now()}.cmd`);
-    fs.writeFileSync(bat, [
-      '@echo off', ':wait', 'timeout /t 1 /nobreak >nul',
-      `move /y "${tmp}" "${exe}" >nul 2>&1 || goto wait`,
-      `start "" "${exe}"`, 'del "%~f0"'
-    ].join('\r\n'));
-    require('child_process').spawn('cmd.exe', ['/c', bat], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
-  });
-  child.unref();
-}
-
 function newer(a, b) {
   const pa = String(a).replace(/^v/, '').split('.').map(Number);
   const pb = String(b).replace(/^v/, '').split('.').map(Number);
@@ -559,7 +446,8 @@ ipcMain.handle('update:install', async () => {
   const exe = process.env.PORTABLE_EXECUTABLE_FILE;
   if (!exe) { shell.openExternal(pendingUpdate.url); return false; }
 
-  const tmp = exe + '.new';
+  const tmp = updater.paths(DATA).exe;
+  fs.mkdirSync(path.dirname(tmp), { recursive: true });
   const r = await fetch(pendingUpdate.url);
   if (!r.ok) throw new Error(`Не удалось скачать обновление (HTTP ${r.status})`);
   const total = Number(r.headers.get('content-length')) || 0;
@@ -570,14 +458,21 @@ ipcMain.handle('update:install', async () => {
     send('status', { text: `Скачиваю обновление v${pendingUpdate.version}...`, percent: total ? (done / total) * 100 : 0 });
   });
   await pipeline(body, fs.createWriteStream(tmp));
-  if (fs.statSync(tmp).size < 1024 * 1024) {
+  if (fs.statSync(tmp).size < 1024 * 1024 || (total && fs.statSync(tmp).size !== total)) {
     fs.rmSync(tmp, { force: true });
     throw new Error('Скачанный файл обновления повреждён, попробуй ещё раз');
   }
 
+  try {
+    await updater.launchFinisher(DATA, { target: exe, version: pendingUpdate.version },
+      (text) => send('status', { text, percent: 100 }));
+  } catch (e) {
+    // запасной путь: открываем страницу загрузки, чтобы можно было скачать вручную
+    shell.openExternal(`https://github.com/${UPDATE_REPO}/releases/latest`);
+    throw new Error(`${e.message}. Открыл страницу загрузки — скачай новую версию оттуда`);
+  }
   send('status', { text: 'Перезапуск...', percent: 100 });
-  startRestartSplash(tmp, exe, pendingUpdate.version);
-  setTimeout(() => app.quit(), 800);
+  setTimeout(() => app.quit(), 200);
   return true;
 });
 
@@ -598,11 +493,17 @@ function createWindow() {
     }
   });
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => {
+    win.show();
+    if (UPD.role === 'final') updater.finishFinal(DATA, UPD.job);
+  });
 }
 
 app.commandLine.appendSwitch('ignore-gpu-blocklist');
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  if (UPD.role === 'finisher') updater.runFinisher(DATA, UPD.job, { BrowserWindow, app }).catch(() => app.quit());
+  else createWindow();
+});
 app.on('window-all-closed', () => app.quit());
 
 /* ---------- IPC ---------- */

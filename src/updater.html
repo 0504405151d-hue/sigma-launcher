@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" />
+  <title>Обновление Sigma Launcher</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; color: #e8ecf3; background: #11141b;
+      border: 1px solid #262c39; padding: 22px 24px; user-select: none; -webkit-app-region: drag;
+      display: flex; flex-direction: column;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; letter-spacing: .08em; color: #4ade80; }
+    .logo { width: 14px; height: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 2px; }
+    .logo i { background: #4ade80; } .logo i:nth-child(2), .logo i:nth-child(3) { background: #15803d; }
+    h1 { font-size: 19px; margin-top: 12px; }
+    p { font-size: 13px; color: #8a93a6; margin-top: 6px; line-height: 1.45; min-height: 19px; }
+    .bar { margin-top: auto; height: 6px; border-radius: 99px; background: #1c212c; overflow: hidden; }
+    .bar div { width: 35%; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #15803d, #4ade80); animation: run 1.2s ease-in-out infinite; }
+    @keyframes run { from { transform: translateX(-100%); } to { transform: translateX(300%); } }
+    .btns { display: none; gap: 8px; margin-top: auto; -webkit-app-region: no-drag; }
+    .btns button { font: inherit; font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 9px; border: 1px solid #262c39; background: #1c212c; color: #e8ecf3; cursor: pointer; }
+    .btns button.primary { background: #4ade80; border-color: #4ade80; color: #052e16; }
+    body.failed .bar { display: none; }
+    body.failed .btns { display: flex; }
+  </style>
+</head>
+<body>
+  <div class="brand"><span class="logo"><i></i><i></i><i></i><i></i></span>SIGMA LAUNCHER</div>
+  <h1 id="title">Обновление</h1>
+  <p id="status">Подготовка...</p>
+  <div class="bar"><div></div></div>
+  <div class="btns">
+    <button class="primary" onclick="console.log('sigma:run')">Запустить</button>
+    <button onclick="console.log('sigma:close')">Закрыть</button>
+  </div>
+  <script>
+    const v = new URLSearchParams(location.search).get('v');
+    document.getElementById('title').textContent = v ? `Обновление до v${v}` : 'Обновление';
+    window.setStatus = (text, state) => {
+      document.getElementById('status').textContent = text;
+      document.body.className = state || '';
+    };
+  </script>
+</body>
+</html>
