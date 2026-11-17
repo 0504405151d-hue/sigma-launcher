@@ -125,7 +125,7 @@ async function loadVersions() {
     const r = await api.listVersions();
     versions = r.versions;
     latest = r.latest;
-    $('#latestTag').textContent = `Последний релиз: ${latest.release}`;
+    $('#latestTag').textContent = `${greeting()} · последний релиз ${latest.release}`;
     updateVersionLabel();
     renderVersions();
   } catch (e) {
@@ -396,4 +396,12 @@ async function showWhatsNew(version) {
   m.querySelector('[data-ok]').onclick = () => m.remove();
   m.addEventListener('mousedown', (e) => { if (e.target === m) m.remove(); });
   document.body.appendChild(m);
+}
+
+/* приветствие на главной по времени суток */
+function greeting() {
+  const h = new Date().getHours();
+  const part = h < 5 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер';
+  const nick = (settings && settings.nickname) || '';
+  return nick ? `${part}, ${nick}` : part;
 }
