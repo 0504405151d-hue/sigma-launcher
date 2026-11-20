@@ -41,7 +41,7 @@
     },
     "portable": {
       "artifactName": "SigmaLauncher-portable.exe",
-      "unpackDirName": false
+      "unpackDirName": true
     }
   },
   "updateRepo": "0504405151d-hue/sigma-launcher",
